@@ -33,37 +33,88 @@
 
   .contenido{padding:20px 28px 60px;}
   .grid-kpi{display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:14px; margin-bottom:20px;}
-  .kpi-card{background:#fff; border:1px solid var(--borde); border-radius:8px; padding:16px 18px;}
+  .kpi-card{background:#fff; border:1px solid var(--borde); border-radius:8px; padding:16px 18px; cursor:pointer; transition:transform .08s, box-shadow .12s, border-color .12s;}
+  .kpi-card:hover{transform:translateY(-2px); box-shadow:0 6px 16px rgba(14,59,54,.13); border-color:var(--esmeralda);}
   .kpi-card.primary{border:2px solid var(--esmeralda); background:var(--bg-soft);}
+  .kpi-card.no-click{cursor:default;}
+  .kpi-card.no-click:hover{transform:none; box-shadow:none; border-color:var(--borde);}
   .kpi-card .label{font-size:11px; font-weight:700; color:var(--gris); text-transform:uppercase; letter-spacing:.4px;}
   .kpi-card .valor{font-size:26px; font-weight:700; color:var(--petroleo); margin-top:6px;}
   .kpi-card.primary .valor{font-size:32px;}
-  .kpi-card .delta{font-size:11px; margin-top:4px; font-weight:600;}
-  .kpi-card .delta.alerta{color:var(--alerta);}
-  .kpi-card .delta.ok{color:var(--esmeralda);}
+  .kpi-card .lupa{font-size:10px; color:var(--esmeralda); font-weight:700; margin-top:4px; min-height:13px; opacity:0; transition:opacity .12s;}
+  .kpi-card:hover .lupa{opacity:1;}
 
   .grid-paneles{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;}
   .grid-paneles.uno{grid-template-columns:1fr;}
   .panel{background:#fff; border:1px solid var(--borde); border-radius:8px; padding:16px 18px;}
   .panel h3{font-size:14px; font-weight:600; color:var(--petroleo); margin-bottom:12px;}
-  .panel canvas{max-height:280px;}
+  .panel h3 .pista{font-size:11px; font-weight:600; color:var(--esmeralda); margin-left:8px;}
+  .panel canvas{max-height:280px; cursor:pointer;}
 
   table.rank{width:100%; border-collapse:collapse; font-size:13px;}
   table.rank th{text-align:left; padding:8px 6px; border-bottom:2px solid var(--petroleo); color:var(--petroleo); font-size:11px; text-transform:uppercase;}
   table.rank td{padding:8px 6px; border-bottom:1px solid var(--gris-claro);}
-  table.rank tr:hover{background:var(--bg-soft);}
+  table.rank tr.clicable{cursor:pointer;}
+  table.rank tr.clicable:hover{background:var(--bg-soft);}
   .barra-mini{height:8px; background:var(--esmeralda); border-radius:4px;}
   .barra-mini-cont{background:var(--gris-claro); border-radius:4px; overflow:hidden; width:100%;}
 
   .nota{background:#fff; border-left:4px solid var(--monetario); padding:10px 14px; font-size:11.5px; color:var(--gris); margin-bottom:16px; border-radius:0 6px 6px 0;}
+  .nota.pista-clic{border-left-color:var(--esmeralda); color:var(--petroleo); font-weight:600; font-size:12.5px;}
   .cargando, .vacio{padding:60px; text-align:center; color:var(--gris); font-style:italic;}
-  .toast{position:fixed; top:70px; right:22px; padding:14px 18px; border-radius:10px; font-size:14px; font-weight:600; z-index:100; display:none; box-shadow:0 4px 14px rgba(0,0,0,.15);}
+  .toast{position:fixed; top:70px; right:22px; padding:14px 18px; border-radius:10px; font-size:14px; font-weight:600; z-index:300; display:none; box-shadow:0 4px 14px rgba(0,0,0,.15);}
   .toast.exito{display:block; background:#ECFDF5; color:#065F46; border:1px solid var(--esmeralda);}
   .toast.error{display:block; background:#FEF2F2; color:var(--alerta); border:1px solid var(--alerta);}
   footer{text-align:center; color:var(--gris); font-size:11px; padding:16px;}
 
+  /* ---------- Ventana emergente de detalle (drill-down) ---------- */
+  .modal-fondo{position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(8,39,34,.58); z-index:200; display:none; justify-content:center; align-items:flex-start; padding:26px 14px; overflow-y:auto;}
+  .modal-fondo.visible{display:flex;}
+  .modal-caja{background:var(--fondo); border-radius:10px; width:100%; max-width:1180px; box-shadow:0 20px 55px rgba(0,0,0,.34); overflow:hidden; margin-bottom:30px;}
+  .modal-header{background:var(--petroleo); border-bottom:3px solid var(--esmeralda); color:#fff; padding:15px 22px; display:flex; justify-content:space-between; align-items:flex-start; gap:18px;}
+  .modal-header h2{font-size:17px; font-weight:600;}
+  .modal-header .sub{display:block; font-size:12px; font-weight:400; color:#CFEFE6; margin-top:3px;}
+  .modal-cerrar{background:transparent; border:1.5px solid rgba(255,255,255,.5); color:#fff; border-radius:7px; padding:6px 12px; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap;}
+  .modal-cerrar:hover{background:rgba(255,255,255,.14);}
+  .modal-cuerpo{padding:18px 22px 24px;}
+
+  .modal-kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:11px; margin-bottom:16px;}
+  .mk{background:#fff; border:1px solid var(--borde); border-radius:8px; padding:11px 13px;}
+  .mk .l{font-size:10px; font-weight:700; color:var(--gris); text-transform:uppercase; letter-spacing:.4px;}
+  .mk .v{font-size:21px; font-weight:700; color:var(--petroleo); margin-top:4px;}
+  .mk .v.alerta{color:var(--alerta);}
+
+  .modal-desgloses{display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:14px; margin-bottom:16px;}
+  .desglose{background:#fff; border:1px solid var(--borde); border-radius:8px; padding:13px 15px;}
+  .desglose h4{font-size:12px; font-weight:700; color:var(--petroleo); text-transform:uppercase; letter-spacing:.3px; margin-bottom:10px; border-bottom:1px solid var(--gris-claro); padding-bottom:7px;}
+  .fila-d{margin-bottom:9px;}
+  .fila-d .t{display:flex; justify-content:space-between; gap:10px; font-size:12.5px; margin-bottom:3px;}
+  .fila-d .t .nom{color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .fila-d .t .num{color:var(--petroleo); font-weight:700; white-space:nowrap;}
+  .fila-d .b{height:7px; background:var(--gris-claro); border-radius:4px; overflow:hidden;}
+  .fila-d .b i{display:block; height:100%; background:var(--esmeralda); border-radius:4px;}
+  .desglose .vacio-d{font-size:12px; color:var(--gris); font-style:italic;}
+
+  .panel-tabla{background:#fff; border:1px solid var(--borde); border-radius:8px; padding:13px 15px;}
+  .panel-tabla .cab{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:11px;}
+  .panel-tabla .cab h4{font-size:12px; font-weight:700; color:var(--petroleo); text-transform:uppercase; letter-spacing:.3px; margin-right:auto;}
+  .panel-tabla input[type=text]{padding:7px 10px; border:1px solid var(--borde); border-radius:7px; font-size:13px; min-width:230px;}
+  .cont-tabla{overflow:auto; max-height:420px; border:1px solid var(--gris-claro); border-radius:6px;}
+  table.det{width:100%; border-collapse:collapse; font-size:12px; white-space:nowrap;}
+  table.det th{position:sticky; top:0; background:var(--petroleo); color:#fff; text-align:left; padding:8px 9px; font-size:10.5px; text-transform:uppercase; letter-spacing:.3px; z-index:2;}
+  table.det td{padding:7px 9px; border-bottom:1px solid var(--gris-claro);}
+  table.det tr:hover td{background:var(--bg-soft);}
+  .pill{display:inline-block; padding:2px 8px; border-radius:11px; font-size:10.5px; font-weight:700;}
+  .pill.PENDIENTE{background:#FEF3C7; color:#92400E;}
+  .pill.PROGRAMADO{background:#DBEAFE; color:#1E40AF;}
+  .pill.EN_ESPERA{background:#EDE9FE; color:#5B21B6;}
+  .pill.ENTREGADO{background:#D1FAE5; color:#065F46;}
+  .pill.NO_ENTREGADO{background:#FEE2E2; color:#991B1B;}
+  .pill.CANCELADO{background:#E5E7EB; color:#374151;}
+  .urg{color:var(--alerta); font-weight:700;}
+
   @media (max-width:900px){ .grid-paneles{grid-template-columns:1fr;} }
-  @media print{ .barra-filtros, .btn-accion{display:none;} body{background:#fff;} }
+  @media print{ .barra-filtros, .btn-accion, .modal-fondo{display:none !important;} body{background:#fff;} }
 </style>
 </head>
 <body>
@@ -115,52 +166,68 @@
 
     <div class="grid-kpi" id="gridKpi"></div>
 
+    <div class="nota pista-clic">🔍 Haz clic en cualquier tarjeta KPI, barra, sector, punto de la línea o fila de ranking para abrir el detalle: verás qué puntos, áreas, distritos, choferes y motivos hay detrás de ese número.</div>
+
     <div class="nota">Los tiempos de espera se calculan entre la hora de llegada del chofer al punto y la hora de cierre (entregado/no entregado). Solicitudes sin ambos timestamps no entran en ese promedio. Los datos reflejan lo registrado en el Sheet al momento de la consulta.</div>
 
     <div class="grid-paneles">
       <div class="panel">
-        <h3>Solicitudes por zona</h3>
+        <h3>Solicitudes por zona <span class="pista">· clic para ver el detalle</span></h3>
         <canvas id="chartZona"></canvas>
       </div>
       <div class="panel">
-        <h3>Estado actual de las solicitudes</h3>
+        <h3>Estado actual de las solicitudes <span class="pista">· clic para ver el detalle</span></h3>
         <canvas id="chartEstado"></canvas>
       </div>
     </div>
 
     <div class="grid-paneles">
       <div class="panel">
-        <h3>Tiempo promedio de espera en el punto por zona (minutos)</h3>
+        <h3>Tiempo promedio de espera en el punto por zona (minutos) <span class="pista">· clic para ver el detalle</span></h3>
         <canvas id="chartEsperaZona"></canvas>
       </div>
       <div class="panel">
-        <h3>Envío vs Recojo vs Traslado</h3>
+        <h3>Envío vs Recojo vs Traslado <span class="pista">· clic para ver el detalle</span></h3>
         <canvas id="chartServicio"></canvas>
       </div>
     </div>
 
     <div class="grid-paneles uno">
       <div class="panel">
-        <h3>Solicitudes registradas por día</h3>
+        <h3>Solicitudes registradas por día <span class="pista">· clic en un punto de la línea para ver ese día</span></h3>
         <canvas id="chartTendencia"></canvas>
       </div>
     </div>
 
     <div class="grid-paneles">
       <div class="panel">
-        <h3>Ranking por chofer — entregas y tiempo promedio de espera</h3>
+        <h3>Ranking por chofer — entregas y tiempo promedio de espera <span class="pista">· clic en una fila</span></h3>
         <table class="rank" id="tablaChoferes"><thead>
           <tr><th>Chofer</th><th>Entregas</th><th>Espera prom.</th><th></th></tr>
         </thead><tbody></tbody></table>
       </div>
       <div class="panel">
-        <h3>Ranking por punto/destino — más frecuentes</h3>
+        <h3>Ranking por punto/destino — más frecuentes <span class="pista">· clic en una fila</span></h3>
         <table class="rank" id="tablaPuntos"><thead>
           <tr><th>Punto</th><th>Zona</th><th>Solicitudes</th><th></th></tr>
         </thead><tbody></tbody></table>
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- ============ VENTANA EMERGENTE DE DETALLE ============ -->
+<div class="modal-fondo" id="modalFondo">
+  <div class="modal-caja">
+    <div class="modal-header">
+      <div>
+        <h2 id="modalTitulo">Detalle</h2>
+        <span class="sub" id="modalSub"></span>
+      </div>
+      <button class="modal-cerrar" id="btnCerrarModal">✕ Cerrar</button>
+    </div>
+    <div class="modal-cuerpo" id="modalCuerpo"></div>
   </div>
 </div>
 
@@ -185,12 +252,82 @@ Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(14,59,54,0.95)';
 Chart.defaults.plugins.tooltip.padding = 10;
 Chart.defaults.plugins.tooltip.cornerRadius = 4;
 
-var registros = [];      // dataset completo (sin filtrar)
+var registros = [];        // dataset completo (sin filtrar)
 var choferesLista = [];
-var graficos = {};       // instancias Chart.js para poder destruir/redibujar
+var graficos = {};         // instancias Chart.js para poder destruir/redibujar
 var filtro = { zona:'', chofer:'', servicio:'', desde:'', hasta:'' };
 
+// Estado auxiliar para el detalle emergente
+var listaFiltradaActual = [];   // lo que hay en pantalla con los filtros aplicados
+var kpisActuales = [];          // definición de KPIs del render en curso
+var zonasBase = ['NORTE','SUR','ESTE','OESTE'];
+var estadosBase = ['PENDIENTE','PROGRAMADO','EN_ESPERA','ENTREGADO','NO ENTREGADO','CANCELADO'];
+var etiquetasEstadoBase = ['Pendiente','Programado','En espera','Entregado','No entregado','Cancelado'];
+var serviciosBase = ['ENVIO','RECOJO','TRASLADO'];
+var etiquetasServicioBase = ['Envío','Recojo','Traslado'];
+var diasTendencia = [];         // claves yyyy-mm-dd en el orden del gráfico de línea
+var detalleActual = [];         // subconjunto mostrado en la ventana emergente
+var detalleTituloActual = '';
+var detalleModoEspera = false;
+
 function val(c){ return c && (c.f !== undefined && c.f !== null ? c.f : c.v) != null ? (c.f !== undefined && c.f !== null ? c.f : c.v) : ''; }
+function esc(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ---------- Plugins de etiquetas (porcentajes visibles, estándar LIVES) ----------
+var pluginEtiquetasBarras = {
+  id:'etiquetasLIVES',
+  afterDatasetsDraw: function(chart){
+    var cfg = chart.config.options.etiquetasLIVES;
+    if (!cfg) return;
+    var ctx = chart.ctx;
+    ctx.save();
+    ctx.font = '700 11px Calibri, Arial, sans-serif';
+    ctx.fillStyle = '#0E3B36';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    chart.data.datasets.forEach(function(ds, di){
+      var meta = chart.getDatasetMeta(di);
+      if (meta.hidden) return;
+      meta.data.forEach(function(barra, i){
+        var v = ds.data[i];
+        if (v === null || v === undefined) return;
+        var txt = String(v) + (cfg.sufijo || '');
+        if (cfg.pct && cfg.total > 0 && v > 0){
+          txt += ' (' + Math.round(v / cfg.total * 100) + '%)';
+        }
+        ctx.fillText(txt, barra.x, barra.y - 5);
+      });
+    });
+    ctx.restore();
+  }
+};
+var pluginCentroDona = {
+  id:'centroDonaLIVES',
+  afterDatasetsDraw: function(chart){
+    var cfg = chart.config.options.centroDona;
+    if (!cfg) return;
+    var meta = chart.getDatasetMeta(0);
+    if (!meta || !meta.data || !meta.data.length) return;
+    var el = meta.data[0];
+    if (el.x === undefined) return;
+    var ctx = chart.ctx;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#0E3B36';
+    ctx.font = '700 26px Calibri, Arial, sans-serif';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(String(cfg.valor), el.x, el.y + 4);
+    ctx.font = '600 10px Calibri, Arial, sans-serif';
+    ctx.fillStyle = '#6B7280';
+    ctx.fillText(cfg.etiqueta || '', el.x, el.y + 20);
+    ctx.restore();
+  }
+};
+Chart.register(pluginEtiquetasBarras);
+Chart.register(pluginCentroDona);
 
 // ---------- Carga de datos (live o congelada) ----------
 function iniciar(){
@@ -199,7 +336,7 @@ function iniciar(){
     choferesLista = Array.from(new Set(registros.map(function(r){return r.chofer;}).filter(Boolean))).sort();
     document.getElementById('notaEstatica').className = 'nota-estatica visible';
     document.getElementById('notaEstatica').textContent =
-      '📌 Copia estática exportada el ' + (FECHA_EXPORTACION||'') + '. Los filtros y gráficos son interactivos, pero los datos no se actualizan: no está conectada al Sheet en vivo.';
+      '📌 Copia estática exportada el ' + (FECHA_EXPORTACION||'') + '. Los filtros, gráficos y el detalle por clic siguen siendo interactivos, pero los datos no se actualizan: no está conectada al Sheet en vivo.';
     document.getElementById('btnActualizar').style.display = 'none';
     document.getElementById('btnExportarEstatico').style.display = 'none';
     prepararFiltros();
@@ -229,18 +366,23 @@ function procesarDatos(json){
         area:      String(row[2]||'').trim(),
         origen:    String(row[3]||'').trim(),
         tipo:      String(row[4]||'').trim(),
+        cantidad:  String(row[5]||'').trim(),
+        peso:      String(row[6]||'').trim(),
         destino:   String(row[7]||'').trim(),
         distrito:  String(row[8]||'').trim(),
         zona:      String(row[9]||'').trim().toUpperCase(),
         prioridad: String(row[10]||'').trim().toUpperCase(),
+        comentarios: String(row[11]||'').trim(),
         chofer:    String(row[12]||'').trim(),
         fechaprog: String(row[13]||'').trim(),
         estado:    String(row[14]||'PENDIENTE').trim().toUpperCase(),
+        motivo:    String(row[15]||'').trim(),
         hentrega:  String(row[16]||'').trim(),
         hprog:     String(row[17]||'').trim(),
         servicio:  String(row[20]||'ENVIO').trim().toUpperCase(),
         hllegada:  String(row[21]||'').trim(),
-        fechanecesidad: String(row[23]||'').trim()
+        fechanecesidad: String(row[23]||'').trim(),
+        motivocancel:   String(row[25]||'').trim()
       };
       if (!o.id) return;
       registros.push(o);
@@ -271,6 +413,14 @@ function soloFecha(str){
   if(!m) return null;
   return new Date(parseInt(m[3],10), parseInt(m[2],10)-1, parseInt(m[1],10));
 }
+function parseFechaFlexible(str){
+  if (!str) return null;
+  var m = String(str).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return new Date(parseInt(m[1],10), parseInt(m[2],10)-1, parseInt(m[3],10));
+  m = String(str).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) return new Date(parseInt(m[3],10), parseInt(m[2],10)-1, parseInt(m[1],10));
+  return null;
+}
 
 function pasaFiltro(o){
   if (filtro.zona && o.zona !== filtro.zona) return false;
@@ -285,12 +435,21 @@ function pasaFiltro(o){
   return true;
 }
 
-function fmtInt(n){ return n.toLocaleString('es-PE'); }
+function fmtInt(n){ return Number(n||0).toLocaleString('es-PE'); }
 function fmtMin(min){
   if (min==null) return '—';
   if (min < 60) return Math.round(min)+' min';
   var h = Math.floor(min/60), m = Math.round(min%60);
   return h+'h '+m+'min';
+}
+function textoFiltrosActivos(){
+  var p = [];
+  if (filtro.zona) p.push('zona ' + filtro.zona);
+  if (filtro.chofer) p.push('chofer ' + filtro.chofer);
+  if (filtro.servicio) p.push('servicio ' + filtro.servicio);
+  if (filtro.desde) p.push('desde ' + filtro.desde);
+  if (filtro.hasta) p.push('hasta ' + filtro.hasta);
+  return p.length ? ('Filtros activos: ' + p.join(' · ')) : 'Sin filtros activos (todo el periodo cargado)';
 }
 
 // ---------- Cálculo de KPIs y render ----------
@@ -301,10 +460,14 @@ function aplicarFiltrosYRenderizar(){
     document.getElementById('subtituloFecha').textContent = 'Datos actualizados: ' + new Date().toLocaleString('es-PE');
   }
 
+  // limpiar marcas temporales de renders anteriores
+  registros.forEach(function(o){ o._esperaMin = null; });
+
   var lista = registros.filter(pasaFiltro);
+  listaFiltradaActual = lista;
+
   var total = lista.length;
   var pend = lista.filter(function(o){return o.estado==='PENDIENTE';}).length;
-  var prog = lista.filter(function(o){return o.estado==='PROGRAMADO';}).length;
   var espera = lista.filter(function(o){return o.estado==='EN_ESPERA';}).length;
   var entr = lista.filter(function(o){return o.estado==='ENTREGADO';}).length;
   var noentr = lista.filter(function(o){return o.estado==='NO ENTREGADO';}).length;
@@ -316,7 +479,11 @@ function aplicarFiltrosYRenderizar(){
   lista.forEach(function(o){
     if ((o.estado==='ENTREGADO'||o.estado==='NO ENTREGADO') && o.hllegada && o.hentrega){
       var t1 = parseFH(o.hllegada), t2 = parseFH(o.hentrega);
-      if (t1 && t2 && t2>=t1) esperas.push({min:(t2-t1)/60000, zona:o.zona, chofer:o.chofer});
+      if (t1 && t2 && t2>=t1){
+        var min = (t2-t1)/60000;
+        o._esperaMin = min;
+        esperas.push({min:min, zona:o.zona, chofer:o.chofer, o:o});
+      }
     }
   });
   var esperaProm = esperas.length ? esperas.reduce(function(a,b){return a+b.min;},0)/esperas.length : null;
@@ -326,64 +493,153 @@ function aplicarFiltrosYRenderizar(){
   var tasaNoEntrega = cerradas ? (noentr/cerradas*100) : 0;
 
   // Vencidas: la fecha en que se necesitaba ya pasó y sigue sin cerrarse
-  function parseFechaFlexible(str){
-    if (!str) return null;
-    var m = String(str).match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (m) return new Date(parseInt(m[1],10), parseInt(m[2],10)-1, parseInt(m[3],10));
-    m = String(str).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-    if (m) return new Date(parseInt(m[3],10), parseInt(m[2],10)-1, parseInt(m[1],10));
-    return null;
-  }
   var hoy0 = new Date(); hoy0.setHours(0,0,0,0);
-  var vencidas = lista.filter(function(o){
+  function esVencida(o){
     if (o.estado==='ENTREGADO' || o.estado==='NO ENTREGADO' || o.estado==='CANCELADO') return false;
     var f = parseFechaFlexible(o.fechanecesidad);
-    return f && f < hoy0;
-  }).length;
+    return !!(f && f < hoy0);
+  }
+  var listaVencidas = lista.filter(esVencida);
+  var vencidas = listaVencidas.length;
 
-  // ---- KPIs ----
-  var kpis = [
-    {label:'Total solicitudes', valor: fmtInt(total), primary:true},
-    {label:'Pendientes', valor: fmtInt(pend)},
-    {label:'Urgentes sin cerrar', valor: fmtInt(urgentesPend), alerta: urgentesPend>0},
-    {label:'Vencidas (fecha ya pasó)', valor: fmtInt(vencidas), alerta: vencidas>0},
-    {label:'En espera en punto', valor: fmtInt(espera)},
-    {label:'Entregadas', valor: fmtInt(entr)},
-    {label:'No entregadas', valor: fmtInt(noentr), alerta: noentr>0},
-    {label:'Canceladas', valor: fmtInt(cancel)},
-    {label:'Tasa no entrega', valor: cerradas? tasaNoEntrega.toFixed(1)+'%':'—', alerta: tasaNoEntrega>10},
-    {label:'Espera prom. en punto', valor: fmtMin(esperaProm)}
+  // ---- KPIs (cada uno abre su propio detalle al hacer clic) ----
+  var dimsGen = [
+    {t:'Punto / destino', k:'destino'},
+    {t:'Área solicitante', k:'area'},
+    {t:'Zona', k:'zona'},
+    {t:'Distrito', k:'distrito'},
+    {t:'Chofer', k:'chofer'},
+    {t:'Estado', k:'estado'}
   ];
-  document.getElementById('gridKpi').innerHTML = kpis.map(function(k){
-    return '<div class="kpi-card '+(k.primary?'primary':'')+'">'
-      + '<div class="label">'+k.label+'</div>'
+  var kpis = [
+    {label:'Total solicitudes', valor: fmtInt(total), primary:true,
+     lista: lista, dims: dimsGen},
+    {label:'Pendientes', valor: fmtInt(pend),
+     lista: lista.filter(function(o){return o.estado==='PENDIENTE';}),
+     dims:[{t:'Punto / destino',k:'destino'},{t:'Área solicitante',k:'area'},{t:'Zona',k:'zona'},{t:'Distrito',k:'distrito'},{t:'Tipo de servicio',k:'servicio'}]},
+    {label:'Urgentes sin cerrar', valor: fmtInt(urgentesPend), alerta: urgentesPend>0,
+     lista: lista.filter(function(o){return o.prioridad==='SI' && (o.estado==='PENDIENTE'||o.estado==='PROGRAMADO');}),
+     dims:[{t:'Área solicitante',k:'area'},{t:'Punto / destino',k:'destino'},{t:'Zona',k:'zona'},{t:'Chofer',k:'chofer'},{t:'Estado',k:'estado'}]},
+    {label:'Vencidas (fecha ya pasó)', valor: fmtInt(vencidas), alerta: vencidas>0,
+     lista: listaVencidas,
+     dims:[{t:'Área solicitante',k:'area'},{t:'Punto / destino',k:'destino'},{t:'Zona',k:'zona'},{t:'Chofer',k:'chofer'},{t:'Estado',k:'estado'}]},
+    {label:'En espera en punto', valor: fmtInt(espera),
+     lista: lista.filter(function(o){return o.estado==='EN_ESPERA';}),
+     dims:[{t:'Chofer',k:'chofer'},{t:'Punto / destino',k:'destino'},{t:'Zona',k:'zona'},{t:'Área solicitante',k:'area'}]},
+    {label:'Entregadas', valor: fmtInt(entr),
+     lista: lista.filter(function(o){return o.estado==='ENTREGADO';}),
+     dims:[{t:'Chofer',k:'chofer'},{t:'Punto / destino',k:'destino'},{t:'Zona',k:'zona'},{t:'Área solicitante',k:'area'},{t:'Tipo de servicio',k:'servicio'}]},
+    {label:'No entregadas', valor: fmtInt(noentr), alerta: noentr>0,
+     lista: lista.filter(function(o){return o.estado==='NO ENTREGADO';}),
+     dims:[{t:'Motivo de no entrega',k:'motivo'},{t:'Punto / destino',k:'destino'},{t:'Zona',k:'zona'},{t:'Chofer',k:'chofer'},{t:'Área solicitante',k:'area'}]},
+    {label:'Canceladas', valor: fmtInt(cancel),
+     lista: lista.filter(function(o){return o.estado==='CANCELADO';}),
+     dims:[{t:'Motivo de cancelación',k:'motivocancel'},{t:'Área solicitante',k:'area'},{t:'Punto / destino',k:'destino'},{t:'Zona',k:'zona'}]},
+    {label:'Tasa no entrega', valor: cerradas? tasaNoEntrega.toFixed(1)+'%':'—', alerta: tasaNoEntrega>10,
+     lista: lista.filter(function(o){return o.estado==='NO ENTREGADO';}),
+     subtituloExtra: 'Denominador: ' + fmtInt(cerradas) + ' solicitudes cerradas (entregadas + no entregadas).',
+     dims:[{t:'Motivo de no entrega',k:'motivo'},{t:'Punto / destino',k:'destino'},{t:'Zona',k:'zona'},{t:'Chofer',k:'chofer'}]},
+    {label:'Espera prom. en punto', valor: fmtMin(esperaProm),
+     lista: esperas.map(function(e){return e.o;}), modoEspera:true,
+     dims:[{t:'Punto / destino',k:'destino'},{t:'Zona',k:'zona'},{t:'Chofer',k:'chofer'},{t:'Área solicitante',k:'area'}]}
+  ];
+  kpisActuales = kpis;
+  document.getElementById('gridKpi').innerHTML = kpis.map(function(k, i){
+    var sinDatos = !k.lista || !k.lista.length;
+    return '<div class="kpi-card '+(k.primary?'primary ':'')+(sinDatos?'no-click':'')+'" data-kpi="'+i+'">'
+      + '<div class="label">'+esc(k.label)+'</div>'
       + '<div class="valor" style="'+(k.alerta?'color:var(--alerta)':'')+'">'+k.valor+'</div>'
+      + '<div class="lupa">'+(sinDatos?'':'🔍 clic para ver el detalle')+'</div>'
       + '</div>';
   }).join('');
 
   // ---- Gráfico: solicitudes por zona ----
-  var zonas = ['NORTE','SUR','ESTE','OESTE'];
-  var porZona = zonas.map(function(z){ return lista.filter(function(o){return o.zona===z;}).length; });
-  dibujarBarras('chartZona', zonas, [{label:'Solicitudes', data:porZona, backgroundColor:COLORES[0]}]);
+  var porZona = zonasBase.map(function(z){ return lista.filter(function(o){return o.zona===z;}).length; });
+  dibujarBarras('chartZona', zonasBase, [{label:'Solicitudes', data:porZona, backgroundColor:COLORES[0]}], {
+    etiquetas:{pct:true, total:total},
+    onClickIdx: function(i){
+      var z = zonasBase[i];
+      abrirDetalle({
+        titulo:'Zona ' + z + ' — qué hay detrás de estas solicitudes',
+        lista: lista.filter(function(o){return o.zona===z;}),
+        dims:[
+          {t:'Puntos más frecuentes en esta zona', k:'destino'},
+          {t:'Distritos de esta zona', k:'distrito'},
+          {t:'Áreas que más solicitan hacia esta zona', k:'area'},
+          {t:'Choferes asignados', k:'chofer'},
+          {t:'Estado de las solicitudes', k:'estado'},
+          {t:'Tipo de servicio', k:'servicio'}
+        ]
+      });
+    }
+  });
 
   // ---- Gráfico: estado ----
-  var estados = ['PENDIENTE','PROGRAMADO','EN_ESPERA','ENTREGADO','NO ENTREGADO','CANCELADO'];
-  var etiquetasEstado = ['Pendiente','Programado','En espera','Entregado','No entregado','Cancelado'];
-  var porEstado = estados.map(function(e){ return lista.filter(function(o){return o.estado===e;}).length; });
-  dibujarDona('chartEstado', etiquetasEstado, porEstado);
+  var porEstado = estadosBase.map(function(e){ return lista.filter(function(o){return o.estado===e;}).length; });
+  dibujarDona('chartEstado', etiquetasEstadoBase, porEstado, {
+    centro:{valor: fmtInt(total), etiqueta:'TOTAL'},
+    onClickIdx: function(i){
+      var e = estadosBase[i];
+      abrirDetalle({
+        titulo:'Estado: ' + etiquetasEstadoBase[i],
+        lista: lista.filter(function(o){return o.estado===e;}),
+        dims:[
+          {t:'Zona', k:'zona'},
+          {t:'Punto / destino', k:'destino'},
+          {t:'Área solicitante', k:'area'},
+          {t:'Chofer', k:'chofer'},
+          {t:'Distrito', k:'distrito'},
+          {t: e==='NO ENTREGADO' ? 'Motivo de no entrega' : (e==='CANCELADO' ? 'Motivo de cancelación' : 'Tipo de servicio'),
+           k: e==='NO ENTREGADO' ? 'motivo' : (e==='CANCELADO' ? 'motivocancel' : 'servicio')}
+        ]
+      });
+    }
+  });
 
   // ---- Gráfico: espera promedio por zona ----
-  var esperaPorZona = zonas.map(function(z){
+  var esperaPorZona = zonasBase.map(function(z){
     var arr = esperas.filter(function(e){return e.zona===z;});
     return arr.length ? Math.round(arr.reduce(function(a,b){return a+b.min;},0)/arr.length) : 0;
   });
-  dibujarBarras('chartEsperaZona', zonas, [{label:'Minutos', data:esperaPorZona, backgroundColor:COLORES[2]}]);
+  dibujarBarras('chartEsperaZona', zonasBase, [{label:'Minutos', data:esperaPorZona, backgroundColor:COLORES[2]}], {
+    etiquetas:{pct:false, sufijo:' min'},
+    onClickIdx: function(i){
+      var z = zonasBase[i];
+      abrirDetalle({
+        titulo:'Espera en el punto — Zona ' + z,
+        subtituloExtra:'Ordenado de mayor a menor espera. Solo entran solicitudes cerradas con hora de llegada y hora de cierre registradas.',
+        lista: esperas.filter(function(e){return e.zona===z;}).map(function(e){return e.o;}),
+        modoEspera:true,
+        dims:[
+          {t:'Punto / destino', k:'destino'},
+          {t:'Chofer', k:'chofer'},
+          {t:'Distrito', k:'distrito'},
+          {t:'Área solicitante', k:'area'}
+        ]
+      });
+    }
+  });
 
   // ---- Gráfico: envío vs recojo vs traslado ----
-  var envios = lista.filter(function(o){return o.servicio==='ENVIO';}).length;
-  var recojos = lista.filter(function(o){return o.servicio==='RECOJO';}).length;
-  var traslados = lista.filter(function(o){return o.servicio==='TRASLADO';}).length;
-  dibujarDona('chartServicio', ['Envío','Recojo','Traslado'], [envios, recojos, traslados]);
+  var porServicio = serviciosBase.map(function(s){ return lista.filter(function(o){return o.servicio===s;}).length; });
+  dibujarDona('chartServicio', etiquetasServicioBase, porServicio, {
+    centro:{valor: fmtInt(total), etiqueta:'TOTAL'},
+    onClickIdx: function(i){
+      var s = serviciosBase[i];
+      abrirDetalle({
+        titulo:'Servicio: ' + etiquetasServicioBase[i],
+        lista: lista.filter(function(o){return o.servicio===s;}),
+        dims:[
+          {t:'Punto / destino', k:'destino'},
+          {t:'Zona', k:'zona'},
+          {t:'Área solicitante', k:'area'},
+          {t:'Chofer', k:'chofer'},
+          {t:'Estado', k:'estado'},
+          {t:'Distrito', k:'distrito'}
+        ]
+      });
+    }
+  });
 
   // ---- Gráfico: tendencia por día ----
   var porDia = {};
@@ -393,9 +649,32 @@ function aplicarFiltrosYRenderizar(){
     var key = f.getFullYear()+'-'+('0'+(f.getMonth()+1)).slice(-2)+'-'+('0'+f.getDate()).slice(-2);
     porDia[key] = (porDia[key]||0)+1;
   });
-  var diasOrdenados = Object.keys(porDia).sort();
-  var etiquetasDias = diasOrdenados.map(function(d){ var p=d.split('-'); return p[2]+'/'+p[1]; });
-  dibujarLinea('chartTendencia', etiquetasDias, diasOrdenados.map(function(d){return porDia[d];}));
+  diasTendencia = Object.keys(porDia).sort();
+  var etiquetasDias = diasTendencia.map(function(d){ var p=d.split('-'); return p[2]+'/'+p[1]; });
+  dibujarLinea('chartTendencia', etiquetasDias, diasTendencia.map(function(d){return porDia[d];}), {
+    onClickIdx: function(i){
+      var key = diasTendencia[i];
+      if (!key) return;
+      var p = key.split('-');
+      abrirDetalle({
+        titulo:'Solicitudes registradas el ' + p[2]+'/'+p[1]+'/'+p[0],
+        lista: lista.filter(function(o){
+          var f = soloFecha(o.fecha);
+          if (!f) return false;
+          var k = f.getFullYear()+'-'+('0'+(f.getMonth()+1)).slice(-2)+'-'+('0'+f.getDate()).slice(-2);
+          return k === key;
+        }),
+        dims:[
+          {t:'Área solicitante', k:'area'},
+          {t:'Zona', k:'zona'},
+          {t:'Punto / destino', k:'destino'},
+          {t:'Estado', k:'estado'},
+          {t:'Chofer', k:'chofer'},
+          {t:'Tipo de servicio', k:'servicio'}
+        ]
+      });
+    }
+  });
 
   // ---- Ranking por chofer ----
   var choferesActivos = Array.from(new Set(lista.map(function(o){return o.chofer;}).filter(Boolean)));
@@ -409,7 +688,7 @@ function aplicarFiltrosYRenderizar(){
   var maxEntregas = rankChofer.length ? Math.max.apply(null, rankChofer.map(function(x){return x.entregas;})) : 1;
   document.querySelector('#tablaChoferes tbody').innerHTML = rankChofer.length ? rankChofer.map(function(r){
     var pct = maxEntregas ? (r.entregas/maxEntregas*100) : 0;
-    return '<tr><td>'+r.chofer+'</td><td>'+r.entregas+'</td><td>'+fmtMin(r.espera)+'</td>'
+    return '<tr class="clicable" data-chofer="'+esc(r.chofer)+'"><td>'+esc(r.chofer)+'</td><td>'+r.entregas+'</td><td>'+fmtMin(r.espera)+'</td>'
       + '<td><div class="barra-mini-cont"><div class="barra-mini" style="width:'+pct+'%"></div></div></td></tr>';
   }).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--gris)">Sin datos con estos filtros</td></tr>';
 
@@ -426,48 +705,355 @@ function aplicarFiltrosYRenderizar(){
   var maxPunto = rankPunto.length ? rankPunto[0].n : 1;
   document.querySelector('#tablaPuntos tbody').innerHTML = rankPunto.length ? rankPunto.map(function(r){
     var pct = maxPunto ? (r.n/maxPunto*100) : 0;
-    return '<tr><td>'+r.punto+'</td><td>'+r.zona+'</td><td>'+r.n+'</td>'
+    return '<tr class="clicable" data-punto="'+esc(r.punto)+'"><td>'+esc(r.punto)+'</td><td>'+esc(r.zona)+'</td><td>'+r.n+'</td>'
       + '<td><div class="barra-mini-cont"><div class="barra-mini" style="width:'+pct+'%;background:var(--petroleo)"></div></div></td></tr>';
   }).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--gris)">Sin datos con estos filtros</td></tr>';
 }
 
 // ---------- Helpers Chart.js ----------
 function destruirSiExiste(id){ if (graficos[id]){ graficos[id].destroy(); delete graficos[id]; } }
-function dibujarBarras(id, labels, datasets){
+
+function manejarClic(cfg){
+  return function(evt, elementos){
+    if (!elementos || !elementos.length) return;
+    if (cfg && typeof cfg.onClickIdx === 'function') cfg.onClickIdx(elementos[0].index);
+  };
+}
+function manejarHover(evt, elementos){
+  if (evt && evt.native && evt.native.target){
+    evt.native.target.style.cursor = (elementos && elementos.length) ? 'pointer' : 'default';
+  }
+}
+
+function dibujarBarras(id, labels, datasets, cfg){
+  cfg = cfg || {};
   destruirSiExiste(id);
   var ctx = document.getElementById(id).getContext('2d');
+  var opciones = {
+    responsive:true, maintainAspectRatio:true,
+    onClick: manejarClic(cfg),
+    onHover: manejarHover,
+    layout:{padding:{top:22}},
+    plugins:{legend:{display:datasets.length>1}},
+    scales:{ x:{grid:{display:false}}, y:{beginAtZero:true, grid:{color:'#F3F4F6'}} }
+  };
+  if (cfg.etiquetas){
+    opciones.etiquetasLIVES = {
+      pct: !!cfg.etiquetas.pct,
+      total: cfg.etiquetas.total || 0,
+      sufijo: cfg.etiquetas.sufijo || ''
+    };
+  }
   graficos[id] = new Chart(ctx, {
     type:'bar',
     data:{labels:labels, datasets:datasets.map(function(d){return Object.assign({borderRadius:3},d);})},
-    options:{
-      responsive:true, maintainAspectRatio:true,
-      plugins:{legend:{display:datasets.length>1}},
-      scales:{ x:{grid:{display:false}}, y:{beginAtZero:true, grid:{color:'#F3F4F6'}} }
-    }
+    options: opciones
   });
 }
-function dibujarDona(id, labels, data){
+
+function dibujarDona(id, labels, data, cfg){
+  cfg = cfg || {};
   destruirSiExiste(id);
   var ctx = document.getElementById(id).getContext('2d');
+  var opciones = {
+    responsive:true, maintainAspectRatio:true,
+    cutout:'58%',
+    onClick: manejarClic(cfg),
+    onHover: manejarHover,
+    plugins:{
+      legend:{position:'bottom'},
+      tooltip:{callbacks:{label:function(c){
+        var tot = c.dataset.data.reduce(function(a,b){return a+(b||0);},0);
+        var pct = tot ? (c.parsed/tot*100).toFixed(1) : '0.0';
+        return c.label + ': ' + c.parsed + ' (' + pct + '%)';
+      }}}
+    }
+  };
+  if (cfg.centro) opciones.centroDona = cfg.centro;
   graficos[id] = new Chart(ctx, {
     type:'doughnut',
     data:{labels:labels, datasets:[{data:data, backgroundColor:COLORES, borderWidth:2, borderColor:'#fff'}]},
-    options:{responsive:true, maintainAspectRatio:true, plugins:{legend:{position:'bottom'}}}
+    options: opciones
   });
 }
-function dibujarLinea(id, labels, data){
+
+function dibujarLinea(id, labels, data, cfg){
+  cfg = cfg || {};
   destruirSiExiste(id);
   var ctx = document.getElementById(id).getContext('2d');
   graficos[id] = new Chart(ctx, {
     type:'line',
-    data:{labels:labels, datasets:[{label:'Solicitudes', data:data, borderColor:COLORES[0], backgroundColor:'rgba(16,185,129,.12)', fill:true, tension:0.3, borderWidth:3, pointRadius:4}]},
+    data:{labels:labels, datasets:[{label:'Solicitudes', data:data, borderColor:COLORES[0], backgroundColor:'rgba(16,185,129,.12)', fill:true, tension:0.3, borderWidth:3, pointRadius:4, pointHoverRadius:7}]},
     options:{
       responsive:true, maintainAspectRatio:true,
-      plugins:{legend:{display:false}},
+      onClick: manejarClic(cfg),
+      onHover: manejarHover,
+      interaction:{mode:'index', intersect:false},
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{afterLabel:function(){ return 'Clic para ver el detalle de ese día'; }}}
+      },
       scales:{ x:{grid:{display:false}}, y:{beginAtZero:true, grid:{color:'#F3F4F6'}} }
     }
   });
 }
+
+// ================= VENTANA EMERGENTE DE DETALLE =================
+function topDe(lista, campo, limite){
+  var conteo = {};
+  lista.forEach(function(o){
+    var v = String(o[campo]==null?'':o[campo]).trim();
+    if (!v) v = '(sin dato)';
+    conteo[v] = (conteo[v]||0) + 1;
+  });
+  var arr = Object.keys(conteo).map(function(k){ return {k:k, n:conteo[k]}; });
+  arr.sort(function(a,b){ return b.n - a.n; });
+  return arr.slice(0, limite || 8);
+}
+
+function abrirDetalle(cfg){
+  var lista = (cfg.lista || []).slice();
+  detalleModoEspera = !!cfg.modoEspera;
+  detalleTituloActual = cfg.titulo || 'Detalle';
+
+  if (detalleModoEspera){
+    lista.sort(function(a,b){ return (b._esperaMin||0) - (a._esperaMin||0); });
+  } else {
+    lista.sort(function(a,b){
+      var fa = parseFH(a.fecha) || soloFecha(a.fecha) || new Date(0);
+      var fb = parseFH(b.fecha) || soloFecha(b.fecha) || new Date(0);
+      return fb - fa;
+    });
+  }
+  detalleActual = lista;
+
+  var universo = listaFiltradaActual.length;
+  var pctUniverso = universo ? (lista.length / universo * 100) : 0;
+
+  document.getElementById('modalTitulo').textContent = detalleTituloActual;
+  var sub = textoFiltrosActivos();
+  if (cfg.subtituloExtra) sub += ' — ' + cfg.subtituloExtra;
+  document.getElementById('modalSub').textContent = sub;
+
+  // ---- mini KPIs del subconjunto ----
+  var mk = [];
+  if (detalleModoEspera){
+    var mins = lista.map(function(o){ return o._esperaMin || 0; });
+    var prom = mins.length ? mins.reduce(function(a,b){return a+b;},0)/mins.length : null;
+    var maxE = mins.length ? Math.max.apply(null, mins) : null;
+    var minE = mins.length ? Math.min.apply(null, mins) : null;
+    var sobre60 = mins.filter(function(m){ return m > 60; }).length;
+    mk = [
+      {l:'Visitas con espera medida', v: fmtInt(lista.length)},
+      {l:'Espera promedio', v: fmtMin(prom)},
+      {l:'Espera más larga', v: fmtMin(maxE)},
+      {l:'Espera más corta', v: fmtMin(minE)},
+      {l:'Esperas de más de 1 hora', v: fmtInt(sobre60), alerta: sobre60>0}
+    ];
+  } else {
+    var nUrg = lista.filter(function(o){ return o.prioridad==='SI'; }).length;
+    var nEntr = lista.filter(function(o){ return o.estado==='ENTREGADO'; }).length;
+    var nNoEntr = lista.filter(function(o){ return o.estado==='NO ENTREGADO'; }).length;
+    var nCancel = lista.filter(function(o){ return o.estado==='CANCELADO'; }).length;
+    var nAbiertas = lista.filter(function(o){
+      return o.estado==='PENDIENTE'||o.estado==='PROGRAMADO'||o.estado==='EN_ESPERA';
+    }).length;
+    var esperasSub = lista.filter(function(o){ return o._esperaMin != null; }).map(function(o){ return o._esperaMin; });
+    var promSub = esperasSub.length ? esperasSub.reduce(function(a,b){return a+b;},0)/esperasSub.length : null;
+    mk = [
+      {l:'Solicitudes', v: fmtInt(lista.length)},
+      {l:'% del total en pantalla', v: universo ? pctUniverso.toFixed(1)+'%' : '—'},
+      {l:'Urgentes', v: fmtInt(nUrg), alerta: nUrg>0},
+      {l:'Sin cerrar', v: fmtInt(nAbiertas)},
+      {l:'Entregadas', v: fmtInt(nEntr)},
+      {l:'No entregadas', v: fmtInt(nNoEntr), alerta: nNoEntr>0},
+      {l:'Canceladas', v: fmtInt(nCancel)},
+      {l:'Espera prom. en punto', v: fmtMin(promSub)}
+    ];
+  }
+  var htmlKpis = '<div class="modal-kpis">' + mk.map(function(k){
+    return '<div class="mk"><div class="l">'+esc(k.l)+'</div><div class="v'+(k.alerta?' alerta':'')+'">'+esc(k.v)+'</div></div>';
+  }).join('') + '</div>';
+
+  // ---- desgloses ----
+  var dims = cfg.dims || [];
+  var htmlDesgloses = '<div class="modal-desgloses">' + dims.map(function(d){
+    var top = topDe(lista, d.k, 8);
+    var maxN = top.length ? top[0].n : 1;
+    var cuerpo;
+    if (!top.length){
+      cuerpo = '<div class="vacio-d">Sin datos</div>';
+    } else {
+      cuerpo = top.map(function(r){
+        var pct = lista.length ? (r.n / lista.length * 100) : 0;
+        var ancho = maxN ? (r.n / maxN * 100) : 0;
+        return '<div class="fila-d">'
+          + '<div class="t"><span class="nom" title="'+esc(r.k)+'">'+esc(r.k)+'</span>'
+          + '<span class="num">'+r.n+' · '+pct.toFixed(1)+'%</span></div>'
+          + '<div class="b"><i style="width:'+ancho+'%"></i></div>'
+          + '</div>';
+      }).join('');
+    }
+    return '<div class="desglose"><h4>'+esc(d.t)+'</h4>'+cuerpo+'</div>';
+  }).join('') + '</div>';
+
+  // ---- tabla de detalle ----
+  var htmlTabla = '<div class="panel-tabla">'
+    + '<div class="cab">'
+    + '<h4>Solicitudes de este grupo</h4>'
+    + '<input type="text" id="buscaDetalle" placeholder="Buscar en este detalle...">'
+    + '<button class="btn-accion" id="btnExcelDetalle">📊 Exportar este detalle</button>'
+    + '</div>'
+    + '<div class="cont-tabla" id="contTablaDetalle"></div>'
+    + '<div style="font-size:11px;color:var(--gris);margin-top:8px" id="pieTablaDetalle"></div>'
+    + '</div>';
+
+  document.getElementById('modalCuerpo').innerHTML = htmlKpis + htmlDesgloses + htmlTabla;
+  pintarTablaDetalle(detalleActual);
+
+  document.getElementById('buscaDetalle').addEventListener('input', function(){
+    var q = this.value.trim().toLowerCase();
+    if (!q){ pintarTablaDetalle(detalleActual); return; }
+    var f = detalleActual.filter(function(o){
+      return [o.id,o.area,o.destino,o.distrito,o.zona,o.chofer,o.estado,o.servicio,o.motivo,o.motivocancel,o.comentarios]
+        .join(' ').toLowerCase().indexOf(q) !== -1;
+    });
+    pintarTablaDetalle(f);
+  });
+  document.getElementById('btnExcelDetalle').addEventListener('click', exportarDetalleExcel);
+
+  document.getElementById('modalFondo').className = 'modal-fondo visible';
+}
+
+function pintarTablaDetalle(lista){
+  var LIMITE = 300;
+  var mostrar = lista.slice(0, LIMITE);
+  var cols = '<tr><th>ID</th><th>Fecha solicitud</th><th>Área</th><th>Servicio</th><th>Punto / destino</th>'
+    + '<th>Distrito</th><th>Zona</th><th>Urg.</th><th>Chofer</th><th>Fecha prog.</th><th>Estado</th>'
+    + (detalleModoEspera ? '<th>Espera en punto</th>' : '')
+    + '<th>Motivo / observación</th></tr>';
+
+  var filas = mostrar.map(function(o){
+    var motivo = o.estado==='NO ENTREGADO' ? o.motivo : (o.estado==='CANCELADO' ? o.motivocancel : '');
+    if (!motivo) motivo = o.comentarios || '';
+    var clasePill = String(o.estado||'').replace(/\s+/g,'_');
+    return '<tr>'
+      + '<td><strong>'+esc(o.id)+'</strong></td>'
+      + '<td>'+esc(o.fecha)+'</td>'
+      + '<td>'+esc(o.area)+'</td>'
+      + '<td>'+esc(o.servicio)+'</td>'
+      + '<td>'+esc(o.destino)+'</td>'
+      + '<td>'+esc(o.distrito)+'</td>'
+      + '<td>'+esc(o.zona)+'</td>'
+      + '<td>'+(o.prioridad==='SI' ? '<span class="urg">URG</span>' : '')+'</td>'
+      + '<td>'+esc(o.chofer)+'</td>'
+      + '<td>'+esc(o.fechaprog)+'</td>'
+      + '<td><span class="pill '+esc(clasePill)+'">'+esc(o.estado)+'</span></td>'
+      + (detalleModoEspera ? '<td><strong>'+esc(fmtMin(o._esperaMin))+'</strong></td>' : '')
+      + '<td title="'+esc(motivo)+'">'+esc(motivo.length>60 ? motivo.slice(0,60)+'…' : motivo)+'</td>'
+      + '</tr>';
+  }).join('');
+
+  document.getElementById('contTablaDetalle').innerHTML =
+    lista.length
+      ? '<table class="det"><thead>'+cols+'</thead><tbody>'+filas+'</tbody></table>'
+      : '<div style="padding:26px;text-align:center;color:var(--gris);font-style:italic">Sin solicitudes en este grupo</div>';
+
+  document.getElementById('pieTablaDetalle').textContent =
+    lista.length > LIMITE
+      ? 'Mostrando las primeras ' + LIMITE + ' de ' + fmtInt(lista.length) + ' solicitudes. Exporta a Excel para verlas todas.'
+      : 'Mostrando ' + fmtInt(lista.length) + ' solicitud(es).';
+}
+
+function exportarDetalleExcel(){
+  if (!detalleActual.length){ mostrarToast('No hay datos para exportar','error'); return; }
+  var filas = detalleActual.map(function(o){
+    var fila = {
+      'ID':o.id, 'Fecha Solicitud':o.fecha, 'Área':o.area, 'Servicio':o.servicio,
+      'Base LIVES / Origen':o.origen, 'Tipo':o.tipo, 'Cantidad':o.cantidad, 'Peso Kg':o.peso,
+      'Punto / Destino':o.destino, 'Distrito':o.distrito, 'Zona':o.zona,
+      'Prioridad':o.prioridad, 'Chofer':o.chofer, 'Fecha Programada':o.fechaprog,
+      'Fecha Necesidad':o.fechanecesidad, 'Estado':o.estado,
+      'Hora Programación':o.hprog, 'Hora Llegada':o.hllegada, 'Hora Entrega':o.hentrega,
+      'Motivo No Entrega':o.motivo, 'Motivo Cancelación':o.motivocancel, 'Comentarios':o.comentarios
+    };
+    if (detalleModoEspera) fila['Espera en Punto (min)'] = o._esperaMin != null ? Math.round(o._esperaMin) : '';
+    return fila;
+  });
+  var ws = XLSX.utils.json_to_sheet(filas);
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Detalle');
+  var hoy = new Date();
+  var nombre = detalleTituloActual.replace(/[^\wáéíóúñÁÉÍÓÚÑ ]/g,'').replace(/\s+/g,'_').slice(0,45);
+  XLSX.writeFile(wb, 'detalle_'+nombre+'_'+hoy.getFullYear()+('0'+(hoy.getMonth()+1)).slice(-2)+('0'+hoy.getDate()).slice(-2)+'.xlsx');
+  mostrarToast('Detalle exportado','exito');
+}
+
+function cerrarModal(){
+  document.getElementById('modalFondo').className = 'modal-fondo';
+}
+document.getElementById('btnCerrarModal').addEventListener('click', cerrarModal);
+document.getElementById('modalFondo').addEventListener('click', function(e){
+  if (e.target === this) cerrarModal();
+});
+document.addEventListener('keydown', function(e){
+  if (e.key === 'Escape') cerrarModal();
+});
+
+// ---- Clic en tarjetas KPI ----
+document.getElementById('gridKpi').addEventListener('click', function(e){
+  var card = e.target.closest('.kpi-card');
+  if (!card) return;
+  var idx = parseInt(card.getAttribute('data-kpi'), 10);
+  var k = kpisActuales[idx];
+  if (!k || !k.lista || !k.lista.length) return;
+  abrirDetalle({
+    titulo: k.label,
+    subtituloExtra: k.subtituloExtra || '',
+    lista: k.lista,
+    dims: k.dims,
+    modoEspera: !!k.modoEspera
+  });
+});
+
+// ---- Clic en fila del ranking de choferes ----
+document.getElementById('tablaChoferes').addEventListener('click', function(e){
+  var tr = e.target.closest('tr[data-chofer]');
+  if (!tr) return;
+  var ch = tr.getAttribute('data-chofer');
+  abrirDetalle({
+    titulo:'Chofer: ' + ch,
+    lista: listaFiltradaActual.filter(function(o){ return o.chofer === ch; }),
+    dims:[
+      {t:'Zonas que cubre', k:'zona'},
+      {t:'Puntos que más visita', k:'destino'},
+      {t:'Distritos', k:'distrito'},
+      {t:'Estado de sus solicitudes', k:'estado'},
+      {t:'Tipo de servicio', k:'servicio'},
+      {t:'Áreas a las que atiende', k:'area'}
+    ]
+  });
+});
+
+// ---- Clic en fila del ranking de puntos ----
+document.getElementById('tablaPuntos').addEventListener('click', function(e){
+  var tr = e.target.closest('tr[data-punto]');
+  if (!tr) return;
+  var pt = tr.getAttribute('data-punto');
+  abrirDetalle({
+    titulo:'Punto: ' + pt,
+    subtituloExtra:'Por qué este punto aparece tanto: quién lo pide y para qué.',
+    lista: listaFiltradaActual.filter(function(o){ return o.destino === pt; }),
+    dims:[
+      {t:'Áreas que lo solicitan', k:'area'},
+      {t:'Tipo de servicio', k:'servicio'},
+      {t:'Estado de las solicitudes', k:'estado'},
+      {t:'Choferes que lo atienden', k:'chofer'},
+      {t:'Tipo de envío', k:'tipo'},
+      {t:'Motivo de no entrega (si hubo)', k:'motivo'}
+    ]
+  });
+});
 
 // ---------- Filtros UI ----------
 document.querySelectorAll('.chip').forEach(function(ch){
@@ -476,14 +1062,15 @@ document.querySelectorAll('.chip').forEach(function(ch){
     document.querySelectorAll('.chip[data-f="'+f+'"]').forEach(function(x){x.classList.remove('activo');});
     this.classList.add('activo');
     filtro[f] = this.getAttribute('data-v');
+    cerrarModal();
     aplicarFiltrosYRenderizar();
   });
 });
-document.getElementById('fChofer').addEventListener('change', function(){ filtro.chofer=this.value; aplicarFiltrosYRenderizar(); });
-document.getElementById('fServicio').addEventListener('change', function(){ filtro.servicio=this.value; aplicarFiltrosYRenderizar(); });
-document.getElementById('fDesde').addEventListener('change', function(){ filtro.desde=this.value; aplicarFiltrosYRenderizar(); });
-document.getElementById('fHasta').addEventListener('change', function(){ filtro.hasta=this.value; aplicarFiltrosYRenderizar(); });
-document.getElementById('btnActualizar').addEventListener('click', cargarSolicitudes);
+document.getElementById('fChofer').addEventListener('change', function(){ filtro.chofer=this.value; cerrarModal(); aplicarFiltrosYRenderizar(); });
+document.getElementById('fServicio').addEventListener('change', function(){ filtro.servicio=this.value; cerrarModal(); aplicarFiltrosYRenderizar(); });
+document.getElementById('fDesde').addEventListener('change', function(){ filtro.desde=this.value; cerrarModal(); aplicarFiltrosYRenderizar(); });
+document.getElementById('fHasta').addEventListener('change', function(){ filtro.hasta=this.value; cerrarModal(); aplicarFiltrosYRenderizar(); });
+document.getElementById('btnActualizar').addEventListener('click', function(){ cerrarModal(); cargarSolicitudes(); });
 
 function mostrarToast(msg, tipo){
   var t = document.getElementById('toast'); t.textContent=msg; t.className='toast '+tipo;
@@ -499,7 +1086,8 @@ document.getElementById('btnExcel').addEventListener('click', function(){
       'ID':o.id, 'Fecha Solicitud':o.fecha, 'Área':o.area, 'Servicio':o.servicio,
       'Base LIVES':o.origen, 'Tipo':o.tipo, 'Punto':o.destino, 'Distrito':o.distrito,
       'Zona':o.zona, 'Prioridad':o.prioridad, 'Chofer':o.chofer, 'Fecha Programada':o.fechaprog,
-      'Estado':o.estado, 'Hora Programación':o.hprog, 'Hora Llegada':o.hllegada, 'Hora Entrega':o.hentrega
+      'Estado':o.estado, 'Motivo No Entrega':o.motivo, 'Motivo Cancelación':o.motivocancel,
+      'Hora Programación':o.hprog, 'Hora Llegada':o.hllegada, 'Hora Entrega':o.hentrega
     };
   });
   var ws = XLSX.utils.json_to_sheet(filas);
@@ -513,12 +1101,20 @@ document.getElementById('btnExcel').addEventListener('click', function(){
 // ---------- Exportar copia estática dinámica (para lectores, sin conexión al Sheet) ----------
 document.getElementById('btnExportarEstatico').addEventListener('click', function(){
   if (!registros.length){ mostrarToast('Espera a que carguen los datos primero','error'); return; }
+  // La copia se toma del DOM: cerramos y vaciamos la ventana emergente para no congelarla dentro.
+  cerrarModal();
+  document.getElementById('modalCuerpo').innerHTML = '';
   var ahora = new Date().toLocaleString('es-PE');
+  // Se limpian las marcas internas temporales (_esperaMin) antes de congelar los datos.
+  var limpios = registros.map(function(o){
+    var c = {};
+    Object.keys(o).forEach(function(k){ if (k.charAt(0) !== '_') c[k] = o[k]; });
+    return c;
+  });
   var html = document.documentElement.outerHTML;
-  // Reemplaza el marcador de datos embebidos por el dataset actual (congelado)
   html = html.replace(
     'var DATOS_EMBEBIDOS = null;',
-    'var DATOS_EMBEBIDOS = ' + JSON.stringify(registros) + ';'
+    'var DATOS_EMBEBIDOS = ' + JSON.stringify(limpios) + ';'
   );
   html = html.replace(
     'var FECHA_EXPORTACION = null;',
