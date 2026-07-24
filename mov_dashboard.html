@@ -6,6 +6,7 @@
 <title>Dashboard de Movilidades — LIVES</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   :root{
     --petroleo:#0E3B36; --petroleo-dark:#082722; --esmeralda:#10B981;
@@ -74,9 +75,12 @@
   .modal-header{background:var(--petroleo); border-bottom:3px solid var(--esmeralda); color:#fff; padding:15px 22px; display:flex; justify-content:space-between; align-items:flex-start; gap:18px;}
   .modal-header h2{font-size:17px; font-weight:600;}
   .modal-header .sub{display:block; font-size:12px; font-weight:400; color:#CFEFE6; margin-top:3px;}
+  .modal-botones-header{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;}
   .modal-cerrar{background:transparent; border:1.5px solid rgba(255,255,255,.5); color:#fff; border-radius:7px; padding:6px 12px; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap;}
   .modal-cerrar:hover{background:rgba(255,255,255,.14);}
+  .modal-cerrar:disabled{opacity:.5; cursor:wait;}
   .modal-cuerpo{padding:18px 22px 24px;}
+  .modal-marca{font-size:13px; font-weight:300; letter-spacing:5px; color:#CFEFE6; margin-top:4px;}
 
   .modal-kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:11px; margin-bottom:16px;}
   .mk{background:#fff; border:1px solid var(--borde); border-radius:8px; padding:11px 13px;}
@@ -224,8 +228,13 @@
       <div>
         <h2 id="modalTitulo">Detalle</h2>
         <span class="sub" id="modalSub"></span>
+        <span class="modal-marca">LIVES</span>
       </div>
-      <button class="modal-cerrar" id="btnCerrarModal">✕ Cerrar</button>
+      <div class="modal-botones-header" id="modalBotonesAccion">
+        <button class="modal-cerrar" id="btnImagenModal" title="Descargar este detalle como imagen PNG">📷 Imagen</button>
+        <button class="modal-cerrar" id="btnImprimirModal" title="Abrir diálogo de impresión con este detalle">🖨️ Imprimir</button>
+        <button class="modal-cerrar" id="btnCerrarModal">✕ Cerrar</button>
+      </div>
     </div>
     <div class="modal-cuerpo" id="modalCuerpo"></div>
   </div>
@@ -993,6 +1002,71 @@ function cerrarModal(){
   document.getElementById('modalFondo').className = 'modal-fondo';
 }
 document.getElementById('btnCerrarModal').addEventListener('click', cerrarModal);
+
+// ---------- Exportar el detalle emergente como imagen (descargar / imprimir) ----------
+function nombreArchivoDetalle(ext){
+  var hoy = new Date();
+  var nombre = detalleTituloActual.replace(/[^\wáéíóúñÁÉÍÓÚÑ ]/g,'').replace(/\s+/g,'_').slice(0,45);
+  return 'detalle_'+nombre+'_'+hoy.getFullYear()+('0'+(hoy.getMonth()+1)).slice(-2)+('0'+hoy.getDate()).slice(-2)+'.'+ext;
+}
+
+function capturarModalComoImagen(callback){
+  if (typeof html2canvas === 'undefined'){
+    mostrarToast('No se pudo cargar el generador de imágenes. Revisa tu conexión a internet.', 'error');
+    return;
+  }
+  var botones = document.getElementById('modalBotonesAccion');
+  var caja = document.querySelector('.modal-caja');
+  var btnImg = document.getElementById('btnImagenModal');
+  var btnPrint = document.getElementById('btnImprimirModal');
+  var textoOriginalImg = btnImg.textContent, textoOriginalPrint = btnPrint.textContent;
+  btnImg.disabled = true; btnPrint.disabled = true;
+  btnImg.textContent = 'Generando...'; btnPrint.textContent = 'Generando...';
+  botones.style.visibility = 'hidden';
+  html2canvas(caja, {backgroundColor:'#F1F6F4', scale:2, useCORS:true}).then(function(canvas){
+    botones.style.visibility = '';
+    btnImg.disabled = false; btnPrint.disabled = false;
+    btnImg.textContent = textoOriginalImg; btnPrint.textContent = textoOriginalPrint;
+    callback(canvas);
+  }).catch(function(){
+    botones.style.visibility = '';
+    btnImg.disabled = false; btnPrint.disabled = false;
+    btnImg.textContent = textoOriginalImg; btnPrint.textContent = textoOriginalPrint;
+    mostrarToast('No se pudo generar la imagen de este detalle', 'error');
+  });
+}
+
+document.getElementById('btnImagenModal').addEventListener('click', function(){
+  capturarModalComoImagen(function(canvas){
+    var a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = nombreArchivoDetalle('png');
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    mostrarToast('Imagen descargada', 'exito');
+  });
+});
+
+document.getElementById('btnImprimirModal').addEventListener('click', function(){
+  capturarModalComoImagen(function(canvas){
+    var dataUrl = canvas.toDataURL('image/png');
+    var ventana = window.open('', '_blank');
+    if (!ventana){
+      mostrarToast('El navegador bloqueó la ventana de impresión. Permite ventanas emergentes para este sitio.', 'error');
+      return;
+    }
+    ventana.document.write(
+      '<!DOCTYPE html><html><head><title>'+ (detalleTituloActual||'Detalle') +' — LIVES</title>'
+      + '<style>body{margin:0;padding:20px;display:flex;justify-content:center;background:#fff}'
+      + 'img{max-width:100%;height:auto}</style></head><body>'
+      + '<img id="imgImprimir" src="'+dataUrl+'"></body></html>'
+    );
+    ventana.document.close();
+    var img = ventana.document.getElementById('imgImprimir');
+    var lanzarImpresion = function(){ ventana.focus(); ventana.print(); };
+    if (img.complete) lanzarImpresion();
+    else img.onload = lanzarImpresion;
+  });
+});
 document.getElementById('modalFondo').addEventListener('click', function(e){
   if (e.target === this) cerrarModal();
 });
