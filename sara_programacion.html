@@ -65,6 +65,13 @@
   .btn-fila-accion.revertir{color:var(--alerta); border-color:#FCA5A5;}
   .btn-fila-accion.cancelar{color:#374151; border-color:#9CA3AF; background:#F3F4F6;}
   .btn-excel{padding:8px 14px; background:#fff; color:#065F46; border:1.5px solid var(--esmeralda); border-radius:7px; font-size:13px; font-weight:600; cursor:pointer;}
+  .btn-coment{padding:4px 10px; background:#EFF6FF; color:#1E40AF; border:1px solid #BFDBFE; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap;}
+  .btn-coment:hover{background:#DBEAFE;}
+  .btn-coment.urgente{background:#FFFBEB; color:#92400E; border-color:#FDE68A;}
+  .btn-coment.urgente:hover{background:#FEF3C7;}
+  .modal-coment-box{width:420px; max-width:92vw;}
+  .modal-coment-box .txt{white-space:pre-wrap; font-size:14px; line-height:1.5; color:#333; background:var(--fondo); border-radius:8px; padding:14px; margin-bottom:14px; max-height:50vh; overflow-y:auto;}
+  .modal-coment-box .meta{font-size:12px; color:var(--gris); margin-bottom:10px;}
 
   .modal-overlay{position:fixed; inset:0; background:rgba(14,59,54,.45); display:none; align-items:center; justify-content:center; z-index:200;}
   .modal-overlay.visible{display:flex;}
@@ -192,6 +199,17 @@
     <div class="modal-acciones">
       <button class="modal-cancelar" id="modalCancelar">Cancelar</button>
       <button class="modal-guardar" id="modalGuardar">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalComentario">
+  <div class="modal-box modal-coment-box">
+    <h3>💬 Comentario</h3>
+    <div class="meta" id="comentarioMeta"></div>
+    <div class="txt" id="comentarioTexto"></div>
+    <div class="modal-acciones">
+      <button class="modal-cancelar" id="comentarioCerrar" style="flex:none; margin-left:auto; padding:9px 18px;">Cerrar</button>
     </div>
   </div>
 </div>
@@ -440,7 +458,9 @@ function render(){
       + '<td class="fh">'+(o.hllegada||'—')+'</td>'
       + '<td class="fh">'+(o.hentrega||'—')+'</td>'
       + '<td style="white-space:nowrap">'+ubicHtml+'</td>'
-      + '<td style="max-width:180px;font-size:12px;color:#6B7280">'+o.comentarios+'</td>'
+      + '<td>'+(o.comentarios
+          ? '<button class="btn-coment'+(o.prioridad==='SI'?' urgente':'')+'" onclick="abrirComentario(\''+o.id+'\')" title="Ver comentario completo">💬 Ver</button>'
+          : '<span style="color:#D1D5DB">—</span>')+'</td>'
       + '</tr>';
   });
   cuerpo.innerHTML = html;
@@ -519,6 +539,27 @@ function mostrarToast(msg, tipo){
   t.textContent = msg; t.className = 'toast '+tipo;
   setTimeout(function(){ t.className='toast'; }, 4500);
 }
+
+function esc(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ---------- Ver comentario completo (solo para Sara, en ventana emergente) ----------
+function abrirComentario(id){
+  var o = solicitudes.find(function(x){return x.id===id;});
+  if (!o || !o.comentarios) return;
+  document.getElementById('comentarioMeta').textContent =
+    o.id + ' · ' + (o.area||'—') + ' · ' + (o.destino||'—');
+  document.getElementById('comentarioTexto').innerHTML = esc(o.comentarios).replace(/\n/g,'<br>');
+  document.getElementById('modalComentario').classList.add('visible');
+}
+document.getElementById('comentarioCerrar').addEventListener('click', function(){
+  document.getElementById('modalComentario').classList.remove('visible');
+});
+document.getElementById('modalComentario').addEventListener('click', function(e){
+  if (e.target === this) this.classList.remove('visible');
+});
 
 // ---------- Editar programación (Sara corrige un error) ----------
 var idEnEdicion = '';
