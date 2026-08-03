@@ -73,6 +73,30 @@
   .est.noentr{background:#FEE2E2; color:#991B1B;}
   .est.espera{background:#FEF3C7; color:#92400E;}
   .sin-res{text-align:center; color:var(--gris); font-size:13px; padding:16px; font-style:italic;}
+
+  /* Puntos múltiples (envío/recojo) */
+  .sub-puntos{font-size:12px; color:var(--gris); margin:-2px 0 8px;}
+  .fila-punto{border:1px solid var(--borde); border-radius:8px; padding:10px; margin-bottom:10px; background:#FAFDFC;}
+  .fila-punto-fila1{display:flex; gap:8px; align-items:center;}
+  .fila-punto-fila1 select{flex:1;}
+  .btn-buzon{flex:none; width:42px; height:42px; border:1.5px solid var(--borde); border-radius:8px; background:#fff; font-size:17px; cursor:pointer;}
+  .btn-buzon.lleno{border-color:var(--esmeralda); background:#ECFDF5;}
+  .btn-quitar-punto{flex:none; width:38px; height:38px; border:1.5px solid var(--borde); border-radius:8px; background:#fff; color:var(--gris); font-size:15px; cursor:pointer;}
+  .btn-quitar-punto:disabled{opacity:.3; cursor:not-allowed;}
+  .btn-agregar-punto{width:100%; margin-top:2px; padding:11px; border:1.5px dashed var(--esmeralda); background:#fff; color:var(--petroleo); border-radius:8px; font-weight:700; font-size:14px; cursor:pointer;}
+  .btn-agregar-punto:hover{background:#ECFDF5;}
+  .item-id-generado{display:flex; justify-content:space-between; gap:10px; padding:8px 12px; border:1px solid var(--borde); border-radius:8px; margin-bottom:6px; font-size:13px; text-align:left;}
+  .item-id-generado b{color:var(--esmeralda);}
+
+  /* Modal de comentario por punto */
+  .modal-overlay{position:fixed; inset:0; background:rgba(14,59,54,.45); display:none; align-items:center; justify-content:center; z-index:200; padding:16px;}
+  .modal-overlay.visible{display:flex;}
+  .modal-caja-punto{background:#fff; border-radius:12px; padding:20px; width:100%; max-width:420px; box-shadow:0 10px 30px rgba(0,0,0,.2);}
+  .modal-caja-punto h3{color:var(--petroleo); font-size:16px; margin-bottom:12px;}
+  .modal-caja-punto textarea{min-height:100px;}
+  .modal-acciones-punto{display:flex; gap:10px; margin-top:14px;}
+  .btn-modal-cancelar{flex:1; padding:10px; border:1.5px solid var(--borde); background:#fff; color:var(--gris); border-radius:8px; font-weight:600; cursor:pointer;}
+  .btn-modal-guardar{flex:1; padding:10px; border:none; background:var(--esmeralda); color:#fff; border-radius:8px; font-weight:700; cursor:pointer;}
 </style>
 </head>
 <body>
@@ -122,11 +146,9 @@
 
     <div id="bloqueDestinoNormal">
       <label id="labelDestino">Destino (a dónde se envía)</label>
-      <select id="destino"><option value="">Cargando puntos...</option></select>
-      <div class="info-destino" id="infoDestino">
-        <span class="etiqueta" id="etqDistrito"></span>
-        <span class="etiqueta zona" id="etqZona"></span>
-      </div>
+      <div class="sub-puntos">Agrega un punto por cada lugar. Usa 📮 para dejar un comentario propio de ese punto.</div>
+      <div id="listaPuntos"></div>
+      <button type="button" class="btn-agregar-punto" id="btnAgregarPunto">+ Agregar otro punto</button>
     </div>
 
     <div id="bloqueTraslado" style="display:none">
@@ -154,8 +176,10 @@
     <label>¿Para cuándo lo necesitas?</label>
     <input type="date" id="fechaNecesidad">
 
-    <label>Comentarios (opcional)</label>
-    <textarea id="comentarios" placeholder="Referencias, persona que recibe, horario..."></textarea>
+    <div id="bloqueComentarioGeneral" style="display:none">
+      <label>Comentarios (opcional)</label>
+      <textarea id="comentarios" placeholder="Referencias, persona que recibe, horario..."></textarea>
+    </div>
 
     <button class="enviar" id="btnEnviar">Guardar solicitud</button>
     <div class="mensaje" id="mensaje"></div>
@@ -163,10 +187,22 @@
 
   <div class="tarjeta pantalla-exito" id="pantallaExito">
     <div class="icono">✓</div>
-    <h2>Solicitud registrada</h2>
+    <h2 id="tituloExito">Solicitud registrada</h2>
     <div class="id-mov" id="idGenerado"></div>
-    <p>Tu solicitud quedó registrada con fecha y hora automáticas.<br>La encargada de movilidades la programará.</p>
+    <div id="listaIdsGenerados" style="display:none;text-align:left;margin:14px auto;max-width:320px;"></div>
+    <p id="textoExito">Tu solicitud quedó registrada con fecha y hora automáticas.<br>La encargada de movilidades la programará.</p>
     <button class="btn-otra" id="btnOtra">Registrar otra solicitud</button>
+  </div>
+
+  <div class="modal-overlay" id="modalComentarioPunto">
+    <div class="modal-caja-punto">
+      <h3 id="tituloModalPunto">Comentario para este punto</h3>
+      <textarea id="textoComentarioPunto" placeholder="Referencias, persona que recibe, horario..."></textarea>
+      <div class="modal-acciones-punto">
+        <button type="button" class="btn-modal-cancelar" id="btnCancelarComentarioPunto">Cancelar</button>
+        <button type="button" class="btn-modal-guardar" id="btnGuardarComentarioPunto">Guardar comentario</button>
+      </div>
+    </div>
   </div>
 
   <div class="tarjeta tarjeta-consulta">
@@ -235,9 +271,24 @@ window.procesarAreas = procesarAreas;
 (function cargarDirectorio(){
   var s = document.createElement('script');
   s.src = URL_APPS_SCRIPT + '?accion=listardirectorio&callback=procesarDirectorio&_=' + Date.now();
-  s.onerror = function(){ selDestino().innerHTML = '<option value="">Error al cargar destinos</option>'; };
+  s.onerror = function(){
+    document.querySelectorAll('#listaPuntos .select-punto').forEach(function(sel){
+      sel.innerHTML = '<option value="">Error al cargar destinos</option>';
+    });
+  };
   document.body.appendChild(s);
 })();
+
+function opcionesDestinoHTML(){
+  var html = '<option value="">— Selecciona el punto —</option>';
+  directorio.forEach(function(d,i){
+    html += '<option value="'+i+'">'+esc(d.nombre)+'</option>';
+  });
+  return html;
+}
+function esc(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 
 function procesarDirectorio(json){
   try{
@@ -251,12 +302,12 @@ function procesarDirectorio(json){
       if (nombre) directorio.push({nombre:nombre, distrito:distrito, zona:zona});
     }
     directorio.sort(function(a,b){ return a.nombre.localeCompare(b.nombre); });
-    var sd = selDestino();
-    sd.innerHTML = '<option value="">— Selecciona el punto —</option>';
-    directorio.forEach(function(d,i){
-      var op = document.createElement('option');
-      op.value = i; op.textContent = d.nombre;
-      sd.appendChild(op);
+
+    // Puntos normales (envío/recojo): refrescar todas las filas de puntos ya creadas
+    document.querySelectorAll('#listaPuntos .select-punto').forEach(function(sel){
+      var valorPrevio = sel.value;
+      sel.innerHTML = opcionesDestinoHTML();
+      if (valorPrevio) sel.value = valorPrevio;
     });
 
     // Puntos válidos para TRASLADO: solo externos, nunca Barranco/Chorrillos-LIVES
@@ -274,10 +325,11 @@ function procesarDirectorio(json){
       });
     });
   }catch(e){
-    selDestino().innerHTML = '<option value="">Error al procesar destinos</option>';
+    document.querySelectorAll('#listaPuntos .select-punto').forEach(function(sel){
+      sel.innerHTML = '<option value="">Error al procesar destinos</option>';
+    });
   }
 }
-function selDestino(){ return document.getElementById('destino'); }
 
 // Apps Script usa el mismo patrón JSONP: responseHandler como función global
 window.procesarDirectorio = procesarDirectorio;
@@ -296,14 +348,87 @@ function wireInfoTraslado(idSelect, idEtqDistrito, idEtqZona, idCont){
 wireInfoTraslado('trasladoOrigen','etqDistritoTO','etqZonaTO','infoTrasladoOrigen');
 wireInfoTraslado('trasladoDestino','etqDistritoTD','etqZonaTD','infoTrasladoDestino');
 
-// --- Mostrar distrito y zona al elegir destino ---
-selDestino().addEventListener('change', function(){
-  var info = document.getElementById('infoDestino');
-  if (this.value === ''){ info.classList.remove('visible'); return; }
-  var d = directorio[parseInt(this.value,10)];
-  document.getElementById('etqDistrito').textContent = d.distrito || 'Sin distrito';
-  document.getElementById('etqZona').textContent = d.zona || 'Sin zona';
-  info.classList.add('visible');
+// =============== PUNTOS MÚLTIPLES (envío / recojo) ===============
+var comentariosPuntos = {};   // id de fila -> texto de comentario
+var contadorPuntos = 0;
+var idPuntoEnEdicion = null;  // id de fila cuyo comentario se está editando en el modal
+
+function crearFilaPunto(){
+  var id = 'p' + (++contadorPuntos);
+  var fila = document.createElement('div');
+  fila.className = 'fila-punto';
+  fila.setAttribute('data-id', id);
+  fila.innerHTML =
+      '<div class="fila-punto-fila1">'
+    + '<select class="select-punto">' + (directorio.length ? opcionesDestinoHTML() : '<option value="">Cargando puntos...</option>') + '</select>'
+    + '<button type="button" class="btn-buzon" title="Agregar comentario para este punto">📮</button>'
+    + '<button type="button" class="btn-quitar-punto" title="Quitar este punto">✕</button>'
+    + '</div>'
+    + '<div class="info-destino"><span class="etiqueta etq-distrito"></span><span class="etiqueta zona etq-zona"></span></div>';
+  document.getElementById('listaPuntos').appendChild(fila);
+  comentariosPuntos[id] = '';
+
+  var select = fila.querySelector('.select-punto');
+  var info = fila.querySelector('.info-destino');
+  select.addEventListener('change', function(){
+    if (this.value === ''){ info.classList.remove('visible'); return; }
+    var d = directorio[parseInt(this.value,10)];
+    fila.querySelector('.etq-distrito').textContent = d.distrito || 'Sin distrito';
+    fila.querySelector('.etq-zona').textContent = d.zona || 'Sin zona';
+    info.classList.add('visible');
+  });
+
+  fila.querySelector('.btn-buzon').addEventListener('click', function(){
+    abrirModalComentarioPunto(id, select);
+  });
+
+  fila.querySelector('.btn-quitar-punto').addEventListener('click', function(){
+    if (document.querySelectorAll('#listaPuntos .fila-punto').length <= 1) return;
+    delete comentariosPuntos[id];
+    fila.remove();
+    actualizarBotonesQuitar();
+  });
+
+  actualizarBotonesQuitar();
+  return fila;
+}
+
+function actualizarBotonesQuitar(){
+  var filas = document.querySelectorAll('#listaPuntos .fila-punto');
+  var soloUna = filas.length <= 1;
+  filas.forEach(function(f){
+    f.querySelector('.btn-quitar-punto').disabled = soloUna;
+  });
+}
+
+document.getElementById('btnAgregarPunto').addEventListener('click', function(){
+  crearFilaPunto();
+});
+
+// Primera fila al cargar la página
+crearFilaPunto();
+
+// --- Modal de comentario por punto ---
+function abrirModalComentarioPunto(id, selectEl){
+  idPuntoEnEdicion = id;
+  var d = (selectEl && selectEl.value !== '') ? directorio[parseInt(selectEl.value,10)] : null;
+  document.getElementById('tituloModalPunto').textContent = d ? ('Comentario para: ' + d.nombre) : 'Comentario para este punto';
+  document.getElementById('textoComentarioPunto').value = comentariosPuntos[id] || '';
+  document.getElementById('modalComentarioPunto').classList.add('visible');
+}
+document.getElementById('btnCancelarComentarioPunto').addEventListener('click', function(){
+  document.getElementById('modalComentarioPunto').classList.remove('visible');
+});
+document.getElementById('modalComentarioPunto').addEventListener('click', function(e){
+  if (e.target === this) this.classList.remove('visible');
+});
+document.getElementById('btnGuardarComentarioPunto').addEventListener('click', function(){
+  if (idPuntoEnEdicion == null) return;
+  var texto = document.getElementById('textoComentarioPunto').value.trim();
+  comentariosPuntos[idPuntoEnEdicion] = texto;
+  var fila = document.querySelector('#listaPuntos .fila-punto[data-id="'+idPuntoEnEdicion+'"]');
+  if (fila) fila.querySelector('.btn-buzon').classList.toggle('lleno', !!texto);
+  document.getElementById('modalComentarioPunto').classList.remove('visible');
 });
 
 // --- Chips ---
@@ -332,6 +457,7 @@ activarChips('chipsServicio','servicio', function(v){
   document.getElementById('bloqueBaseLives').style.display = esTraslado ? 'none' : 'block';
   document.getElementById('bloqueDestinoNormal').style.display = esTraslado ? 'none' : 'block';
   document.getElementById('bloqueTraslado').style.display = esTraslado ? 'block' : 'none';
+  document.getElementById('bloqueComentarioGeneral').style.display = esTraslado ? 'block' : 'none';
   if (v === 'RECOJO'){
     lblBase.textContent = 'Llevar a — base LIVES';
     lblDest.textContent = 'Recoger en (de dónde)';
@@ -362,7 +488,9 @@ document.getElementById('btnEnviar').addEventListener('click', function(){
   if (sel.tipo==='CARGA' && !document.getElementById('peso').value) errores.push('el peso aproximado');
   if ((sel.tipo==='PAQUETE'||sel.tipo==='SOBRE') && !document.getElementById('cantidad').value) errores.push('la cantidad');
 
-  var origenPunto, destinoPunto, destinoIdx;
+  var origenPunto, destinoPunto;
+  var puntosAEnviar = [];
+
   if (esTraslado){
     var idxTO = document.getElementById('trasladoOrigen').value;
     var idxTD = document.getElementById('trasladoDestino').value;
@@ -373,8 +501,23 @@ document.getElementById('btnEnviar').addEventListener('click', function(){
     if (idxTD!=='') destinoPunto = directorio[parseInt(idxTD,10)];
   } else {
     if (!sel.origen) errores.push('el origen');
-    destinoIdx = selDestino().value;
-    if (destinoIdx==='') errores.push('el destino');
+    var filasPunto = document.querySelectorAll('#listaPuntos .fila-punto');
+    var numeroPunto = 0;
+    filasPunto.forEach(function(fila){
+      numeroPunto++;
+      var select = fila.querySelector('.select-punto');
+      if (select.value === ''){
+        errores.push('el destino del punto ' + numeroPunto);
+        return;
+      }
+      var d = directorio[parseInt(select.value,10)];
+      var id = fila.getAttribute('data-id');
+      puntosAEnviar.push({
+        destino: d.nombre, distrito: d.distrito, zona: d.zona,
+        comentario: comentariosPuntos[id] || '',
+        filaEl: fila, filaId: id
+      });
+    });
   }
 
   if (errores.length){
@@ -393,9 +536,8 @@ document.getElementById('btnEnviar').addEventListener('click', function(){
   var btn = document.getElementById('btnEnviar');
   btn.disabled = true; btn.textContent = 'Guardando...';
 
-  var params;
   if (esTraslado){
-    params = {
+    enviarParams({
       accion:'nueva', area:area, origen:origenPunto.nombre, tipo:sel.tipo, servicio:sel.servicio,
       peso: document.getElementById('peso').value || '',
       cantidad: document.getElementById('cantidad').value || '',
@@ -403,56 +545,135 @@ document.getElementById('btnEnviar').addEventListener('click', function(){
       prioridad:sel.prioridad,
       fechanecesidad: document.getElementById('fechaNecesidad').value || '',
       comentarios: document.getElementById('comentarios').value.trim(),
-      callback:'respuestaGuardar'
-    };
+      callback:'respuestaGuardarUnico'
+    });
   } else {
-    var d = directorio[parseInt(destinoIdx,10)];
-    params = {
-      accion:'nueva', area:area, origen:sel.origen, tipo:sel.tipo, servicio:sel.servicio,
-      peso: document.getElementById('peso').value || '',
-      cantidad: document.getElementById('cantidad').value || '',
-      destino:d.nombre, distrito:d.distrito, zona:d.zona,
-      prioridad:sel.prioridad,
-      fechanecesidad: document.getElementById('fechaNecesidad').value || '',
-      comentarios: document.getElementById('comentarios').value.trim(),
-      callback:'respuestaGuardar'
-    };
+    idsGenerados = [];
+    puntosPendientes = puntosAEnviar.slice();
+    areaEnvioActual = area;
+    enviarSiguientePunto();
   }
+});
+
+function enviarParams(params){
   var qs = Object.keys(params).map(function(k){
     return encodeURIComponent(k)+'='+encodeURIComponent(params[k]);
   }).join('&');
-
   var s = document.createElement('script');
   s.src = URL_APPS_SCRIPT + '?' + qs;
   s.onerror = function(){
-    btn.disabled=false; btn.textContent='Guardar solicitud';
-    msg.className='mensaje error';
-    msg.textContent='No se pudo conectar. Revisa tu internet e intenta de nuevo.';
+    manejarErrorEnvio('No se pudo conectar. Revisa tu internet e intenta de nuevo.');
   };
   document.body.appendChild(s);
-});
+}
 
-window.respuestaGuardar = function(r){
+function manejarErrorEnvio(texto){
   var btn = document.getElementById('btnEnviar');
   btn.disabled=false; btn.textContent='Guardar solicitud';
   var msg = document.getElementById('mensaje');
+  msg.className='mensaje error';
+  msg.textContent = texto;
+}
+
+// --- Envío único (traslado) ---
+window.respuestaGuardarUnico = function(r){
   if (r && r.ok){
-    document.getElementById('formulario').style.display='none';
-    document.getElementById('idGenerado').textContent = r.id;
-    document.getElementById('pantallaExito').classList.add('visible');
+    mostrarExito([{id:r.id, destino:''}], true);
   } else {
-    msg.className='mensaje error';
-    msg.textContent = (r && r.msg) ? r.msg : 'Error desconocido al guardar.';
+    manejarErrorEnvio((r && r.msg) ? r.msg : 'Error desconocido al guardar.');
   }
 };
+
+// --- Envío múltiple (envío/recojo con varios puntos), uno por uno ---
+var idsGenerados = [];
+var puntosPendientes = [];
+var areaEnvioActual = '';
+
+function enviarSiguientePunto(){
+  if (!puntosPendientes.length){
+    mostrarExito(idsGenerados, idsGenerados.length <= 1);
+    return;
+  }
+  var punto = puntosPendientes.shift();
+  window.__puntoEnCurso = punto;
+  enviarParams({
+    accion:'nueva', area:areaEnvioActual, origen:sel.origen, tipo:sel.tipo, servicio:sel.servicio,
+    peso: document.getElementById('peso').value || '',
+    cantidad: document.getElementById('cantidad').value || '',
+    destino:punto.destino, distrito:punto.distrito, zona:punto.zona,
+    prioridad:sel.prioridad,
+    fechanecesidad: document.getElementById('fechaNecesidad').value || '',
+    comentarios: punto.comentario || '',
+    callback:'respuestaGuardarPunto'
+  });
+}
+
+window.respuestaGuardarPunto = function(r){
+  var punto = window.__puntoEnCurso;
+  if (r && r.ok){
+    idsGenerados.push({id:r.id, destino: punto ? punto.destino : ''});
+    // Ya quedó guardado: sacamos su fila del formulario para no reenviarla si hay que reintentar
+    if (punto && punto.filaEl){
+      delete comentariosPuntos[punto.filaId];
+      punto.filaEl.remove();
+      actualizarBotonesQuitar();
+      if (!document.querySelectorAll('#listaPuntos .fila-punto').length) crearFilaPunto();
+    }
+    enviarSiguientePunto();
+  } else {
+    var faltantes = puntosPendientes.length;
+    var msgTxt = (r && r.msg) ? r.msg : 'Error desconocido al guardar';
+    if (idsGenerados.length){
+      manejarErrorEnvio(
+        'Se registraron ' + idsGenerados.length + ' solicitud(es) correctamente. Falló el punto "' +
+        (punto ? punto.destino : '') + '": ' + msgTxt + '. Quedan ' + (faltantes + 1) +
+        ' punto(s) por enviar en el formulario — revisa y presiona Guardar solicitud de nuevo.'
+      );
+    } else {
+      manejarErrorEnvio(msgTxt);
+    }
+  }
+};
+
+// --- Pantalla de éxito (una sola solicitud o varias) ---
+function mostrarExito(lista, esSimple){
+  document.getElementById('formulario').style.display='none';
+  var tituloEl = document.getElementById('tituloExito');
+  var idGenEl = document.getElementById('idGenerado');
+  var listaEl = document.getElementById('listaIdsGenerados');
+  var textoEl = document.getElementById('textoExito');
+
+  if (esSimple && lista.length){
+    tituloEl.textContent = 'Solicitud registrada';
+    idGenEl.style.display = 'block';
+    idGenEl.textContent = lista[0].id;
+    listaEl.style.display = 'none';
+    textoEl.innerHTML = 'Tu solicitud quedó registrada con fecha y hora automáticas.<br>La encargada de movilidades la programará.';
+  } else {
+    tituloEl.textContent = lista.length + ' solicitudes registradas';
+    idGenEl.style.display = 'none';
+    listaEl.style.display = 'block';
+    listaEl.innerHTML = lista.map(function(x){
+      return '<div class="item-id-generado"><span>'+esc(x.destino||'—')+'</span><b>'+esc(x.id)+'</b></div>';
+    }).join('');
+    textoEl.innerHTML = 'Cada punto quedó registrado como una solicitud independiente, con su propio seguimiento.<br>La encargada de movilidades las programará.';
+  }
+  document.getElementById('pantallaExito').classList.add('visible');
+  var btn = document.getElementById('btnEnviar');
+  btn.disabled = false; btn.textContent = 'Guardar solicitud';
+}
 
 document.getElementById('btnOtra').addEventListener('click', function(){
   // Limpiar campos variables, mantener área y origen (suelen repetirse)
   document.getElementById('peso').value='';
   document.getElementById('cantidad').value='';
   document.getElementById('comentarios').value='';
-  selDestino().value='';
-  document.getElementById('infoDestino').classList.remove('visible');
+
+  // Reiniciar puntos: dejar una sola fila vacía
+  document.getElementById('listaPuntos').innerHTML = '';
+  comentariosPuntos = {};
+  crearFilaPunto();
+
   document.getElementById('trasladoOrigen').value='';
   document.getElementById('trasladoDestino').value='';
   document.getElementById('infoTrasladoOrigen').classList.remove('visible');
