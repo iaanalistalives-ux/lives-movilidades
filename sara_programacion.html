@@ -27,6 +27,8 @@
   .btn-zona.activo{background:var(--petroleo); color:#fff; border-color:var(--petroleo);}
   .toggle-urg{padding:7px 13px; border:1.5px solid var(--alerta); border-radius:20px; background:#fff; font-size:12px; font-weight:600; color:var(--alerta); cursor:pointer;}
   .toggle-urg.activo{background:var(--alerta); color:#fff;}
+  .toggle-reprog{padding:7px 13px; border:1.5px solid var(--monetario); border-radius:20px; background:#fff; font-size:12px; font-weight:600; color:#92400E; cursor:pointer;}
+  .toggle-reprog.activo{background:var(--monetario); color:#fff;}
   .btn-refresh{margin-left:auto; padding:8px 14px; background:var(--esmeralda); color:#fff; border:none; border-radius:7px; font-size:13px; font-weight:600; cursor:pointer;}
 
   .resumen{padding:10px 22px; font-size:13px; color:var(--gris);}
@@ -56,6 +58,10 @@
   .b-recojo{background:#F59E0B; color:#fff;}
   .b-traslado{background:#6D28D9; color:#fff;}
   .b-espera{background:#FEF3C7; color:#92400E;}
+  .b-reprog{background:var(--monetario); color:#fff;}
+  .fila-check{display:flex; align-items:flex-start; gap:8px; margin-top:14px;}
+  .fila-check input{width:16px; height:16px; margin-top:2px; cursor:pointer; accent-color:var(--monetario);}
+  .fila-check label{margin:0 !important; font-size:12.5px; color:var(--petroleo); font-weight:600; cursor:pointer;}
   .btn-ubic{display:inline-block; padding:3px 9px; background:#EFF6FF; color:#1E40AF; border:1px solid #BFDBFE; border-radius:6px; font-size:12px; font-weight:600; text-decoration:none;}
   .btn-ubic:hover{background:#DBEAFE;}
   .btn-ubic.llegada{background:#FFFBEB; color:#92400E; border-color:#FDE68A;}
@@ -126,6 +132,7 @@
     <span class="btn-zona" data-zona="OESTE">Oeste</span>
   </div>
   <span class="toggle-urg" id="toggleUrg">Solo urgentes</span>
+  <span class="toggle-reprog" id="toggleReprog">Solo reprogramados</span>
   <div class="grupo-filtro">
     <label>Estado:</label>
     <select id="filtroEstado">
@@ -134,6 +141,15 @@
       <option value="EN_ESPERA">En espera</option>
       <option value="CANCELADO">Canceladas</option>
       <option value="TODOS">Todos</option>
+    </select>
+  </div>
+  <div class="grupo-filtro">
+    <label>Tipo:</label>
+    <select id="filtroTipo">
+      <option value="">Todos</option>
+      <option value="CARGA">Carga</option>
+      <option value="PAQUETE">Paquete</option>
+      <option value="SOBRE">Sobre</option>
     </select>
   </div>
   <div class="grupo-filtro">
@@ -196,6 +212,10 @@
     <select id="modalChofer"><option value="">— Elegir chofer —</option></select>
     <label>Fecha programada</label>
     <input type="date" id="modalFecha">
+    <div class="fila-check">
+      <input type="checkbox" id="modalReprogramado">
+      <label for="modalReprogramado">Marcar como reprogramación (cambió la fecha ya asignada)</label>
+    </div>
     <div class="modal-acciones">
       <button class="modal-cancelar" id="modalCancelar">Cancelar</button>
       <button class="modal-guardar" id="modalGuardar">Guardar cambios</button>
@@ -252,7 +272,7 @@ var solicitudes = [];       // todas las filas
 var choferes = [];          // activos
 var puntosBloqueados = {};  // DESTINO(mayus) -> true si tiene PROGRAMADO sin cerrar
 var seleccion = {};         // id -> true
-var filtro = { zona:'', urg:false, estado:'PENDIENTE', buscar:'', chofer:'', fechanecesaria:'' };
+var filtro = { zona:'', urg:false, reprog:false, estado:'PENDIENTE', tipo:'', buscar:'', chofer:'', fechanecesaria:'' };
 
 // ---------- Cargar CHOFERES (Apps Script: inmune a filtros visuales del Sheet) ----------
 function cargarChoferes(){
@@ -324,7 +344,8 @@ function procesarSolicitudes(json){
         ubicacionllegada: String(row[22]||'').trim(),
         fechanecesidad: String(row[23]||'').trim(),
         hcancelacion: String(row[24]||'').trim(),
-        motivocancelacion: String(row[25]||'').trim()
+        motivocancelacion: String(row[25]||'').trim(),
+        reprogramado: String(row[26]||'').trim().toUpperCase()
       };
       if (!o.id) return;
       if (o.id.toUpperCase() === 'ID') return; // descartar fila de encabezado
@@ -352,6 +373,8 @@ function pasaFiltros(o){
   if (filtro.estado !== 'TODOS' && o.estado !== filtro.estado) return false;
   if (filtro.zona && o.zona !== filtro.zona) return false;
   if (filtro.urg && o.prioridad !== 'SI') return false;
+  if (filtro.reprog && o.reprogramado !== 'SI') return false;
+  if (filtro.tipo && o.tipo !== filtro.tipo) return false;
   if (filtro.chofer && o.chofer !== filtro.chofer) return false;
   if (filtro.fechanecesaria){
     var f = parseFechaFlexible(o.fechanecesidad);
@@ -452,7 +475,7 @@ function render(){
       + '<td class="destino-col">'+o.destino+(enCurso?' <span class="badge b-lock" title="Este punto ya tiene otro despacho en curso — puedes asignar igual, solo verifica con el equipo">⚠️ ya en curso</span>':'')+'</td>'
       + '<td>'+o.distrito+'</td>'
       + '<td><span class="badge b-zona">'+o.zona+'</span></td>'
-      + '<td>'+badgeEstado(o.estado)+(o.motivo?'<br><span style="font-size:11px;color:#991B1B">'+o.motivo+'</span>':'')+(o.estado==='CANCELADO'?'<br><span style="font-size:11px;color:#6B7280">'+o.hcancelacion+(o.motivocancelacion?' · '+o.motivocancelacion:'')+'</span>':'')+'</td>'
+      + '<td>'+badgeEstado(o.estado)+(o.reprogramado==='SI'?' <span class="badge b-reprog" title="Esta solicitud fue reprogramada: cambió una fecha ya asignada">🔁 REPROGRAMADO</span>':'')+(o.motivo?'<br><span style="font-size:11px;color:#991B1B">'+o.motivo+'</span>':'')+(o.estado==='CANCELADO'?'<br><span style="font-size:11px;color:#6B7280">'+o.hcancelacion+(o.motivocancelacion?' · '+o.motivocancelacion:'')+'</span>':'')+'</td>'
       + '<td>'+(o.chofer||'—')+'</td>'
       + '<td class="fh">'+(o.hprog||'—')+'</td>'
       + '<td class="fh">'+(o.hllegada||'—')+'</td>'
@@ -575,6 +598,7 @@ function abrirEditar(id){
     sel.appendChild(op);
   });
   document.getElementById('modalFecha').value = o.fechaprog ? convertirAFechaISO(o.fechaprog) : '';
+  document.getElementById('modalReprogramado').checked = (o.reprogramado === 'SI');
   document.getElementById('modalEditar').classList.add('visible');
 }
 function convertirAFechaISO(v){
@@ -590,9 +614,10 @@ document.getElementById('modalCancelar').addEventListener('click', function(){
 document.getElementById('modalGuardar').addEventListener('click', function(){
   var chofer = document.getElementById('modalChofer').value;
   var fecha = document.getElementById('modalFecha').value;
+  var reprogramado = document.getElementById('modalReprogramado').checked;
   if (!chofer && !fecha){ mostrarToast('No hay cambios que guardar','error'); return; }
   var btn = this; btn.disabled=true; btn.textContent='Guardando...';
-  var params = { accion:'editarprogramacion', id:idEnEdicion, chofer:chofer||'', fechaprog:fecha||'', callback:'respEditar' };
+  var params = { accion:'editarprogramacion', id:idEnEdicion, chofer:chofer||'', fechaprog:fecha||'', reprogramado: reprogramado?'1':'0', callback:'respEditar' };
   var qs = Object.keys(params).map(function(k){return encodeURIComponent(k)+'='+encodeURIComponent(params[k]);}).join('&');
   var s = document.createElement('script');
   s.src = URL_APPS_SCRIPT + '?' + qs;
@@ -658,6 +683,7 @@ document.getElementById('btnExcel').addEventListener('click', function(){
       'Hora Programación': o.hprog, 'Hora Llegada': o.hllegada, 'Hora Entrega': o.hentrega,
       'Fecha Necesaria': o.fechanecesidad, 'Motivo No Entrega': o.motivo,
       'Fecha/Hora Cancelación': o.hcancelacion, 'Motivo Cancelación': o.motivocancelacion,
+      'Reprogramado': o.reprogramado==='SI'?'SI':'NO',
       'Comentarios': o.comentarios
     };
   });
@@ -681,7 +707,11 @@ document.querySelectorAll('.btn-zona').forEach(function(b){
 document.getElementById('toggleUrg').addEventListener('click', function(){
   filtro.urg = !filtro.urg; this.classList.toggle('activo', filtro.urg); render();
 });
+document.getElementById('toggleReprog').addEventListener('click', function(){
+  filtro.reprog = !filtro.reprog; this.classList.toggle('activo', filtro.reprog); render();
+});
 document.getElementById('filtroEstado').addEventListener('change', function(){ filtro.estado=this.value; render(); });
+document.getElementById('filtroTipo').addEventListener('change', function(){ filtro.tipo=this.value; render(); });
 document.getElementById('filtroChofer').addEventListener('change', function(){ filtro.chofer=this.value; render(); });
 document.getElementById('filtroFechaNecesaria').addEventListener('change', function(){ filtro.fechanecesaria=this.value; render(); });
 document.getElementById('btnLimpiarFechaNecesaria').addEventListener('click', function(){
@@ -728,5 +758,3 @@ cargarSolicitudes();
 </script>
 </body>
 </html>
-
-<!-- redeploy -->
