@@ -56,6 +56,10 @@
   .foto-input{display:none;}
   .preview{margin-top:10px; text-align:center;}
   .preview img{max-width:100%; max-height:160px; border-radius:8px; border:1px solid var(--borde);}
+  .fotos-grid{display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;}
+  .fotos-grid .miniatura{position:relative; width:76px; height:76px;}
+  .fotos-grid .miniatura img{width:100%; height:100%; object-fit:cover; border-radius:8px; border:1px solid var(--borde);}
+  .fotos-grid .miniatura .quitar{position:absolute; top:-6px; right:-6px; width:22px; height:22px; border-radius:50%; background:var(--alerta); color:#fff; border:2px solid #fff; font-size:12px; line-height:18px; text-align:center; cursor:pointer; padding:0;}
 
   .motivo-box{margin-top:10px; display:none;}
   .motivo-box.visible{display:block;}
@@ -103,7 +107,7 @@ var URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbwY21RREcAXwgrruP
 
 var choferActual = '';
 var solicitudes = [];
-var fotos = {}; // id -> dataURL
+var fotos = {}; // id -> [dataURL, dataURL, ...]
 
 function valC(c){ return c ? (c.f!=null?c.f:(c.v!=null?c.v:'')) : ''; }
 
@@ -215,9 +219,9 @@ function render(){
           +   '<button class="btn-entregado" onclick="marcarEntregado(\''+o.id+'\')">'+txtBtnOk+'</button>'
           +   '<button class="btn-noentregado" onclick="mostrarMotivo(\''+o.id+'\')">No se pudo</button>'
           + '</div>'
-          + '<label class="btn-foto" id="lblfoto-'+o.id+'" for="foto-'+o.id+'">📷 Tomar foto (opcional)</label>'
+          + '<label class="btn-foto" id="lblfoto-'+o.id+'" for="foto-'+o.id+'">📷 Agregar foto (opcional)</label>'
           + '<input type="file" accept="image/*" capture="environment" class="foto-input" id="foto-'+o.id+'" onchange="capturarFoto(\''+o.id+'\', this)">'
-          + '<div class="preview" id="prev-'+o.id+'"></div>'
+          + '<div class="fotos-grid" id="prev-'+o.id+'"></div>'
           + '<div class="motivo-box" id="motivo-'+o.id+'">'
           +   '<textarea id="txtmotivo-'+o.id+'" placeholder="¿Por qué no se pudo? (obligatorio)"></textarea>'
           +   '<button class="confirmar" onclick="marcarNoEntregado(\''+o.id+'\')">Confirmar</button>'
@@ -236,7 +240,7 @@ function render(){
   lista.innerHTML = html;
 }
 
-// ---------- Foto (comprimir) ----------
+// ---------- Fotos (comprimir, permite varias) ----------
 function capturarFoto(id, input){
   var file = input.files[0];
   if(!file) return;
@@ -249,14 +253,36 @@ function capturarFoto(id, input){
       var cv=document.createElement('canvas'); cv.width=w; cv.height=h;
       cv.getContext('2d').drawImage(img,0,0,w,h);
       var dataUrl = cv.toDataURL('image/jpeg', 0.55);
-      fotos[id] = dataUrl;
-      document.getElementById('prev-'+id).innerHTML='<img src="'+dataUrl+'">';
-      var lbl=document.getElementById('lblfoto-'+id);
-      lbl.classList.add('con-foto'); lbl.textContent='✓ Foto adjunta (toca para cambiar)';
+      if(!fotos[id]) fotos[id] = [];
+      fotos[id].push(dataUrl);
+      renderFotos(id);
+      input.value = ''; // permite volver a elegir/tomar otra foto de inmediato
     };
     img.src = ev.target.result;
   };
   reader.readAsDataURL(file);
+}
+
+function quitarFoto(id, idx){
+  if(!fotos[id]) return;
+  fotos[id].splice(idx, 1);
+  renderFotos(id);
+}
+
+function renderFotos(id){
+  var cont = document.getElementById('prev-'+id);
+  var lbl = document.getElementById('lblfoto-'+id);
+  var lista = fotos[id] || [];
+  if(cont){
+    cont.innerHTML = lista.map(function(dataUrl, idx){
+      return '<div class="miniatura"><img src="'+dataUrl+'">'
+        + '<button type="button" class="quitar" onclick="quitarFoto(\''+id+'\', '+idx+')" title="Quitar esta foto">✕</button></div>';
+    }).join('');
+  }
+  if(lbl){
+    if(lista.length){ lbl.classList.add('con-foto'); lbl.textContent='📷 Agregar otra foto ('+lista.length+' agregada'+(lista.length>1?'s':'')+')'; }
+    else { lbl.classList.remove('con-foto'); lbl.textContent='📷 Agregar foto (opcional)'; }
+  }
 }
 
 // ---------- Geolocalización (no bloqueante) ----------
@@ -343,8 +369,8 @@ function enviarEstado(id, estado, motivo, u){
 window.respEstado = function(r){
   var id = window.__idEnCurso;
   if(r && r.ok){
-    // Enviar foto si existe (best-effort, por separado)
-    if(fotos[id]) enviarFoto(id, fotos[id]);
+    // Enviar fotos si existen (best-effort, por separado)
+    if(fotos[id] && fotos[id].length) enviarFotos(id, fotos[id]);
     mostrarToast('Registrado: '+(r.msg||'ok'),'exito');
     // Quitar la card de la lista
     solicitudes = solicitudes.filter(function(x){ return x.id!==id; });
@@ -364,13 +390,13 @@ function reactivar(id){
   var be=card.querySelector('.btn-entregado'); if(be) be.textContent='✓ Entregado';
 }
 
-// Foto vía POST no-cors (fire-and-forget: registra en Drive sin bloquear el flujo)
-function enviarFoto(id, dataUrl){
+// Fotos vía POST no-cors (fire-and-forget: registra en Drive sin bloquear el flujo)
+function enviarFotos(id, listaDataUrls){
   try{
     fetch(URL_APPS_SCRIPT, {
       method:'POST', mode:'no-cors',
       headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body: JSON.stringify({accion:'foto', id:id, foto:dataUrl})
+      body: JSON.stringify({accion:'foto', id:id, fotos:listaDataUrls})
     });
   }catch(e){}
 }
