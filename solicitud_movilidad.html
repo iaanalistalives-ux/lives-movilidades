@@ -97,6 +97,12 @@
   .modal-acciones-punto{display:flex; gap:10px; margin-top:14px;}
   .btn-modal-cancelar{flex:1; padding:10px; border:1.5px solid var(--borde); background:#fff; color:var(--gris); border-radius:8px; font-weight:600; cursor:pointer;}
   .btn-modal-guardar{flex:1; padding:10px; border:none; background:var(--esmeralda); color:#fff; border-radius:8px; font-weight:700; cursor:pointer;}
+  .btn-ver-fotos{margin-top:6px; padding:6px 12px; background:#ECFDF5; color:var(--petroleo); border:1px solid #A7F3D0; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;}
+  .modal-caja-fotos{background:#fff; border-radius:12px; padding:20px; width:100%; max-width:460px; box-shadow:0 10px 30px rgba(0,0,0,.2);}
+  .modal-caja-fotos h3{color:var(--petroleo); font-size:16px; margin-bottom:12px;}
+  .grid-fotos-modal{display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:10px; margin-bottom:14px; max-height:55vh; overflow-y:auto;}
+  .grid-fotos-modal a{display:block; border-radius:8px; overflow:hidden; border:1px solid var(--borde);}
+  .grid-fotos-modal img{width:100%; height:120px; object-fit:cover; display:block;}
 </style>
 </head>
 <body>
@@ -201,6 +207,16 @@
       <div class="modal-acciones-punto">
         <button type="button" class="btn-modal-cancelar" id="btnCancelarComentarioPunto">Cancelar</button>
         <button type="button" class="btn-modal-guardar" id="btnGuardarComentarioPunto">Guardar comentario</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modalFotosConsulta">
+    <div class="modal-caja-fotos">
+      <h3>📷 Fotos de la entrega</h3>
+      <div class="grid-fotos-modal" id="fotosConsultaGrid"></div>
+      <div class="modal-acciones-punto">
+        <button type="button" class="btn-modal-cancelar" id="btnCerrarFotosConsulta" style="flex:none; margin-left:auto; padding:9px 18px;">Cerrar</button>
       </div>
     </div>
   </div>
@@ -752,12 +768,17 @@ function procesarConsulta(json){
         chofer:String(row[12]||''), fechaprog:String(row[13]||''),
         motivo:String(row[15]||''), servicio:String(row[20]||'ENVIO').toUpperCase(),
         fechanecesidad:String(row[23]||''),
+        foto:String(row[19]||'').trim(),
         num:(function(){var m=String(row[0]||'').match(/MOV-(\d+)/);return m?parseInt(m[1],10):0;})()
       });
     });
   }catch(e){}
 
   filas.sort(function(a,b){ return b.num - a.num; }); // más recientes primero
+  filas.forEach(function(o){
+    o.fotos = o.foto ? o.foto.split(',').map(function(u){return u.trim();}).filter(Boolean) : [];
+  });
+  window.__resultadosConsulta = filas;
 
   if(!filas.length){ cont.innerHTML='<div class="sin-res">No se encontraron solicitudes con esos criterios.</div>'; return; }
 
@@ -779,11 +800,29 @@ function procesarConsulta(json){
       + '<div class="linea1"><span class="id">'+o.id+' · '+serv+'</span>'+badge(o.estado)+'</div>'
       + '<div class="dest">'+o.destino+' <span style="color:#9CA3AF">('+o.distrito+')</span></div>'
       + '<div class="meta">'+o.fecha+(o.fechanecesidad?' · Necesitado para: '+o.fechanecesidad:'')+(mostrarArea&&o.area?' · Área: '+o.area:'')+(extra?' · '+extra:'')+'</div>'
+      + (o.fotos.length ? '<button type="button" class="btn-ver-fotos" onclick="abrirFotosConsulta(\''+o.id+'\')">📷 Ver fotos ('+o.fotos.length+')</button>' : '')
       + '</div>';
   });
   cont.innerHTML = html;
 }
 window.procesarConsulta = procesarConsulta;
+
+// ---------- Ver fotos de una solicitud consultada, en ventana emergente ----------
+function abrirFotosConsulta(id){
+  var lista = window.__resultadosConsulta || [];
+  var o = lista.find(function(x){ return x.id === id; });
+  if (!o || !o.fotos.length) return;
+  document.getElementById('fotosConsultaGrid').innerHTML = o.fotos.map(function(url){
+    return '<a href="'+esc(url)+'" target="_blank" title="Ver tamaño completo"><img src="'+esc(url)+'" loading="lazy"></a>';
+  }).join('');
+  document.getElementById('modalFotosConsulta').classList.add('visible');
+}
+document.getElementById('btnCerrarFotosConsulta').addEventListener('click', function(){
+  document.getElementById('modalFotosConsulta').classList.remove('visible');
+});
+document.getElementById('modalFotosConsulta').addEventListener('click', function(e){
+  if (e.target === this) this.classList.remove('visible');
+});
 </script>
 </body>
 </html>
