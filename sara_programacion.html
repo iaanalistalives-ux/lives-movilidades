@@ -65,7 +65,7 @@
   .btn-ubic{display:inline-block; padding:3px 9px; background:#EFF6FF; color:#1E40AF; border:1px solid #BFDBFE; border-radius:6px; font-size:12px; font-weight:600; text-decoration:none;}
   .btn-ubic:hover{background:#DBEAFE;}
   .btn-ubic.llegada{background:#FFFBEB; color:#92400E; border-color:#FDE68A;}
-  .btn-foto-link{display:inline-block; padding:3px 7px; background:#ECFDF5; border:1px solid #A7F3D0; border-radius:6px; text-decoration:none; font-size:13px;}
+  .btn-foto-link{display:inline-block; padding:3px 7px; background:#ECFDF5; border:1px solid #A7F3D0; border-radius:6px; text-decoration:none; font-size:13px; cursor:pointer; font-weight:600; color:var(--petroleo);}
   .btn-fila-accion{padding:4px 8px; border:1px solid var(--borde); border-radius:6px; background:#fff; font-size:12px; cursor:pointer; margin-right:3px;}
   .btn-fila-accion:hover{background:var(--gris-claro);}
   .btn-fila-accion.revertir{color:var(--alerta); border-color:#FCA5A5;}
@@ -78,6 +78,10 @@
   .modal-coment-box{width:420px; max-width:92vw;}
   .modal-coment-box .txt{white-space:pre-wrap; font-size:14px; line-height:1.5; color:#333; background:var(--fondo); border-radius:8px; padding:14px; margin-bottom:14px; max-height:50vh; overflow-y:auto;}
   .modal-coment-box .meta{font-size:12px; color:var(--gris); margin-bottom:10px;}
+  .modal-fotos-box{width:460px; max-width:92vw;}
+  .grid-fotos-modal{display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:10px; margin-bottom:14px; max-height:55vh; overflow-y:auto;}
+  .grid-fotos-modal a{display:block; border-radius:8px; overflow:hidden; border:1px solid var(--borde);}
+  .grid-fotos-modal img{width:100%; height:120px; object-fit:cover; display:block;}
 
   .modal-overlay{position:fixed; inset:0; background:rgba(14,59,54,.45); display:none; align-items:center; justify-content:center; z-index:200;}
   .modal-overlay.visible{display:flex;}
@@ -234,6 +238,17 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modalFotos">
+  <div class="modal-box modal-fotos-box">
+    <h3>📷 Fotos</h3>
+    <div class="meta" id="fotosMeta"></div>
+    <div class="grid-fotos-modal" id="fotosGrid"></div>
+    <div class="modal-acciones">
+      <button class="modal-cancelar" id="fotosCerrar" style="flex:none; margin-left:auto; padding:9px 18px;">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modalDashboard">
   <div class="modal-box modal-dashboard-box">
     <div class="modal-dashboard-top">
@@ -350,6 +365,7 @@ function procesarSolicitudes(json){
       if (!o.id) return;
       if (o.id.toUpperCase() === 'ID') return; // descartar fila de encabezado
       o.num = (function(){ var m=o.id.match(/MOV-(\d+)/); return m?parseInt(m[1],10):9999; })();
+      o.fotos = o.foto ? o.foto.split(',').map(function(u){return u.trim();}).filter(Boolean) : [];
       solicitudes.push(o);
       if (o.estado === 'PROGRAMADO' || o.estado === 'EN_ESPERA') puntosBloqueados[o.destino.toUpperCase()] = true;
     });
@@ -445,7 +461,7 @@ function render(){
     var ubicHtml = '';
     if (o.ubicacionllegada) ubicHtml += '<a href="'+o.ubicacionllegada+'" target="_blank" class="btn-ubic llegada" title="Ubicación de llegada">📍L</a> ';
     if (o.ubicacion) ubicHtml += '<a href="'+o.ubicacion+'" target="_blank" class="btn-ubic" title="Ubicación de entrega/cierre">📍E</a> ';
-    if (o.foto) ubicHtml += '<a href="'+o.foto+'" target="_blank" class="btn-foto-link" title="Ver foto">📷</a>';
+    if (o.fotos.length) ubicHtml += '<button type="button" class="btn-foto-link" onclick="abrirFotos(\''+o.id+'\')" title="Ver fotos">📷 Ver ('+o.fotos.length+')</button>';
     if (!ubicHtml) ubicHtml = '<span style="color:#D1D5DB">—</span>';
     var editable = (o.estado==='PROGRAMADO' || o.estado==='EN_ESPERA');
     var cancelable = (o.estado==='PENDIENTE' || o.estado==='PROGRAMADO' || o.estado==='EN_ESPERA');
@@ -581,6 +597,24 @@ document.getElementById('comentarioCerrar').addEventListener('click', function()
   document.getElementById('modalComentario').classList.remove('visible');
 });
 document.getElementById('modalComentario').addEventListener('click', function(e){
+  if (e.target === this) this.classList.remove('visible');
+});
+
+// ---------- Ver fotos de la entrega/recojo, en ventana emergente ----------
+function abrirFotos(id){
+  var o = solicitudes.find(function(x){return x.id===id;});
+  if (!o || !o.fotos.length) return;
+  document.getElementById('fotosMeta').textContent =
+    o.id + ' · ' + (o.area||'—') + ' · ' + (o.destino||'—') + ' · ' + o.fotos.length + ' foto(s)';
+  document.getElementById('fotosGrid').innerHTML = o.fotos.map(function(url){
+    return '<a href="'+esc(url)+'" target="_blank" title="Ver tamaño completo"><img src="'+esc(url)+'" loading="lazy"></a>';
+  }).join('');
+  document.getElementById('modalFotos').classList.add('visible');
+}
+document.getElementById('fotosCerrar').addEventListener('click', function(){
+  document.getElementById('modalFotos').classList.remove('visible');
+});
+document.getElementById('modalFotos').addEventListener('click', function(e){
   if (e.target === this) this.classList.remove('visible');
 });
 
