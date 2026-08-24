@@ -93,11 +93,6 @@
   .modal-acciones button{flex:1; padding:10px; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer;}
   .modal-guardar{background:var(--esmeralda); color:#fff;}
   .modal-cancelar{background:#fff; color:var(--gris); border:1px solid var(--borde) !important;}
-  .modal-dashboard-box{width:94vw; height:92vh; max-width:1400px; padding:14px; display:flex; flex-direction:column;}
-  .modal-dashboard-top{display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;}
-  .modal-dashboard-top h3{color:var(--petroleo); font-size:16px;}
-  .btn-cerrar-dash{padding:8px 14px; background:var(--petroleo); color:#fff; border:none; border-radius:7px; font-size:13px; font-weight:600; cursor:pointer;}
-  #iframeDashboard{flex:1; width:100%; border:1px solid var(--borde); border-radius:8px;}
   .id-col{font-weight:700; color:var(--petroleo); white-space:nowrap;}
   .fh{font-size:12px; color:var(--gris); white-space:nowrap;}
   .destino-col{font-weight:600;}
@@ -170,7 +165,6 @@
     <input type="text" id="buscar" placeholder="Destino, área, ID...">
   </div>
   <button class="btn-excel" id="btnExcel">📊 Exportar Excel</button>
-  <button class="btn-excel" id="btnVerDashboard" style="border-color:var(--petroleo);color:var(--petroleo)">📈 Ver Dashboard</button>
   <button class="btn-refresh" id="btnRefresh">Actualizar</button>
 </div>
 
@@ -246,16 +240,6 @@
     <div class="modal-acciones">
       <button class="modal-cancelar" id="fotosCerrar" style="flex:none; margin-left:auto; padding:9px 18px;">Cerrar</button>
     </div>
-  </div>
-</div>
-
-<div class="modal-overlay" id="modalDashboard">
-  <div class="modal-box modal-dashboard-box">
-    <div class="modal-dashboard-top">
-      <h3 style="margin:0">📈 Dashboard de Movilidades</h3>
-      <button class="btn-cerrar-dash" id="btnCerrarDashboard">✕ Cerrar</button>
-    </div>
-    <iframe id="iframeDashboard" src="" title="Dashboard de Movilidades"></iframe>
   </div>
 </div>
 
@@ -776,17 +760,7 @@ document.getElementById('chkTodos').addEventListener('change', function(){
   document.getElementById('fechaProg').value = iso;
 })();
 
-// ---------- Ver dashboard embebido (sin salir de esta página) ----------
-document.getElementById('btnVerDashboard').addEventListener('click', function(){
-  var frame = document.getElementById('iframeDashboard');
-  if (!frame.getAttribute('src')) frame.setAttribute('src', 'mov_dashboard.html');
-  document.getElementById('modalDashboard').classList.add('visible');
-});
-document.getElementById('btnCerrarDashboard').addEventListener('click', function(){
-  document.getElementById('modalDashboard').classList.remove('visible');
-});
-
-// Init
+// ---------- Init ----------
 cargarChoferes();
 cargarSolicitudes();
 </script>
