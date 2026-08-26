@@ -158,22 +158,46 @@ function cargarRuta(){
 }
 function normalizar(s){ return String(s||'').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim(); }
 
+function fechaHoyISO(){
+  var hoy = new Date();
+  return hoy.getFullYear()+'-'+('0'+(hoy.getMonth()+1)).slice(-2)+'-'+('0'+hoy.getDate()).slice(-2);
+}
+function esFechaHoy(v){
+  if (!v) return false;
+  var iso;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) iso = v;
+  else {
+    var m = String(v).match(/(\d{2})\/(\d{2})\/(\d{4})/);
+    iso = m ? (m[3]+'-'+m[2]+'-'+m[1]) : '';
+  }
+  return iso === fechaHoyISO();
+}
+
 function procesarRuta(json){
   solicitudes = [];
+  var pendientesOtroDia = 0;
   var chN = normalizar(choferActual);
   try{
     var todas = (json && json.filas) ? json.filas : [];
     todas.forEach(function(row){
       var chofer = normalizar(row[12]);
       var estado = String(row[14]||'').toUpperCase();
+      var fechaprog = String(row[13]||'');
       if(chofer !== chN) return;
       if(estado !== 'PROGRAMADO' && estado !== 'EN_ESPERA') return; // solo lo activo del chofer
+      // Solo se muestra lo programado para HOY. Lo de otros días queda oculto hasta su fecha.
+      // Excepción: si ya está EN_ESPERA (el chofer ya llegó y quedó pendiente de cerrar),
+      // siempre se muestra sin importar la fecha — ocultarlo dejaría una entrega a medias sin cómo cerrarla.
+      if (estado !== 'EN_ESPERA' && !esFechaHoy(fechaprog)){
+        pendientesOtroDia++;
+        return;
+      }
       solicitudes.push({
         id:String(row[0]||''), tipo:String(row[4]||''),
         cantidad:String(row[5]||''), peso:String(row[6]||''),
         destino:String(row[7]||''), distrito:String(row[8]||''),
         zona:String(row[9]||'').toUpperCase(), prioridad:String(row[10]||'').toUpperCase(),
-        comentarios:String(row[11]||''), fechaprog:String(row[13]||''), area:String(row[2]||''),
+        comentarios:String(row[11]||''), fechaprog:fechaprog, area:String(row[2]||''),
         origen:String(row[3]||''), servicio:String(row[20]||'ENVIO').toUpperCase(),
         fechanecesidad:String(row[23]||''),
         estado:estado,
@@ -181,6 +205,7 @@ function procesarRuta(json){
       });
     });
   }catch(e){}
+  window.__pendientesOtroDia = pendientesOtroDia;
   solicitudes.sort(function(a,b){
     var ea=a.estado==='EN_ESPERA'?0:1, eb=b.estado==='EN_ESPERA'?0:1;
     if(ea!==eb) return ea-eb;
@@ -195,8 +220,13 @@ window.procesarRuta = procesarRuta;
 
 function render(){
   var lista = document.getElementById('lista');
-  document.getElementById('resumen').innerHTML = '<b>'+solicitudes.length+'</b> entrega(s) por realizar';
-  if(!solicitudes.length){ lista.innerHTML='<div class="vacio">No tienes entregas programadas por ahora.</div>'; return; }
+  var otroDia = window.__pendientesOtroDia || 0;
+  var notaOtroDia = otroDia ? ' · '+otroDia+' más programada'+(otroDia>1?'s':'')+' para otro día (aparecerán en su fecha)' : '';
+  document.getElementById('resumen').innerHTML = '<b>'+solicitudes.length+'</b> entrega(s) para hoy'+notaOtroDia;
+  if(!solicitudes.length){
+    lista.innerHTML = '<div class="vacio">No tienes entregas programadas para hoy.'+(otroDia?'<br><br>Tienes '+otroDia+' programada'+(otroDia>1?'s':'')+' para otros días — aparecerán automáticamente en su fecha.':'')+'</div>';
+    return;
+  }
   var html='';
   solicitudes.forEach(function(o){
     var cantPeso = o.tipo.toUpperCase()==='CARGA' ? (o.peso? o.peso+' kg':'—') : (o.cantidad? o.cantidad+' und':'—');
