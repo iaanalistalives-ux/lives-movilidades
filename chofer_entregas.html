@@ -32,6 +32,16 @@
   .jornada .elegir button:active{background:var(--fondo);}
   .jornada .confirmado{display:flex; align-items:center; gap:8px; background:#ECFDF5; border:1px solid #A7F3D0; border-radius:8px; padding:10px 12px; font-size:13px; color:#065F46; font-weight:600;}
   .jornada .confirmado .icono{font-size:16px;}
+  .jornada .btn-deshacer{width:100%; margin-top:10px; padding:9px 8px; border:none; background:transparent; color:var(--gris); font-size:12px; text-decoration:underline; cursor:pointer;}
+  .jornada .btn-deshacer:active{color:var(--alerta);}
+
+  .modal-confirma-jornada{position:fixed; inset:0; background:rgba(14,59,54,.6); display:none; align-items:center; justify-content:center; z-index:100; padding:20px;}
+  .modal-confirma-jornada.visible{display:flex;}
+  .modal-confirma-jornada .caja{background:#fff; border-radius:16px; padding:30px 24px; text-align:center; max-width:340px; width:100%; box-shadow:0 12px 34px rgba(0,0,0,.32);}
+  .modal-confirma-jornada .icono{font-size:48px; margin-bottom:10px;}
+  .modal-confirma-jornada .titulo{font-size:18px; font-weight:800; color:var(--petroleo); margin-bottom:8px;}
+  .modal-confirma-jornada .detalle{font-size:14px; color:var(--gris); margin-bottom:20px; line-height:1.4;}
+  .modal-confirma-jornada .btn-entendido{width:100%; padding:14px; background:var(--esmeralda); color:#fff; border:none; border-radius:10px; font-size:16px; font-weight:700; cursor:pointer;}
 
   .card{background:#fff; border-radius:12px; padding:16px; box-shadow:0 2px 8px rgba(14,59,54,.08); margin-bottom:14px; border-left:5px solid var(--esmeralda);}
   .card.urgente{border-left-color:var(--alerta);}
@@ -112,6 +122,15 @@
 
 <div class="toast" id="toast"></div>
 <footer>LIVES · Sistema de Movilidades · Uso interno</footer>
+
+<div class="modal-confirma-jornada" id="modalConfirmaJornada">
+  <div class="caja">
+    <div class="icono" id="iconoConfirmaJornada">✅</div>
+    <div class="titulo" id="tituloConfirmaJornada">¡Listo!</div>
+    <div class="detalle" id="detalleConfirmaJornada"></div>
+    <button type="button" class="btn-entendido" id="btnEntendidoJornada">Entendido</button>
+  </div>
+</div>
 
 <script>
 // =============== CONFIGURACIÓN ===============
@@ -195,13 +214,15 @@ function renderJornada(salida, llegada){
       + '<div class="elegir" style="margin-top:10px">'
       + '<button type="button" onclick="marcarBase(\'llegada\',\'BARRANCO\')">Volví a Barranco</button>'
       + '<button type="button" onclick="marcarBase(\'llegada\',\'CHORRILLOS\')">Volví a Chorrillos</button>'
-      + '</div>';
+      + '</div>'
+      + '<button type="button" class="btn-deshacer" onclick="deshacerBase(\'salida\')">↩️ Me equivoqué, deshacer la salida</button>';
     return;
   }
   titulo.textContent = '✓ Jornada de hoy completa';
   cuerpo.innerHTML =
       '<div class="confirmado" style="margin-bottom:8px"><span class="icono">🚀</span> Salida: '+salida.base+' — '+horaCorta(salida.hora)+'</div>'
-    + '<div class="confirmado"><span class="icono">🏁</span> Llegada: '+(llegada.base||salida.base)+' — '+horaCorta(llegada.hora)+'</div>';
+    + '<div class="confirmado"><span class="icono">🏁</span> Llegada: '+(llegada.base||salida.base)+' — '+horaCorta(llegada.hora)+'</div>'
+    + '<button type="button" class="btn-deshacer" onclick="deshacerBase(\'llegada\')">↩️ Me equivoqué, deshacer la llegada</button>';
 }
 
 function horaCorta(fh){
@@ -209,10 +230,14 @@ function horaCorta(fh){
   return m ? (m[1]+':'+m[2]) : (fh||'');
 }
 
+var TEXTO_BASE = { BARRANCO:'Barranco', CHORRILLOS:'Chorrillos' };
 function marcarBase(tipo, base){
+  var verbo = tipo === 'salida' ? 'saliste de' : 'volviste a';
+  if (!confirm('¿Seguro que '+verbo+' '+TEXTO_BASE[base]+'?')) return;
   var botones = document.querySelectorAll('#jornadaCuerpo button');
   botones.forEach(function(b){ b.disabled = true; });
   document.getElementById('jornadaCuerpo').innerHTML = '<div style="font-size:13px;color:var(--gris)">Registrando...</div>';
+  window.__marcaEnCurso = { tipo:tipo, base:base };
   obtenerUbicacion().then(function(u){
     var accion = tipo === 'salida' ? 'marcarsalidabase' : 'marcarllegadabase';
     var params = { accion:accion, chofer:choferActual, base:base, lat:u.lat||'', lng:u.lng||'', callback:'respMarcarBase' };
@@ -224,9 +249,45 @@ function marcarBase(tipo, base){
   });
 }
 window.respMarcarBase = function(r){
-  if(r && r.ok){ mostrarToast(r.yaExistia ? 'Ya estaba registrado' : 'Registrado','exito'); }
-  else { mostrarToast((r&&r.msg)?r.msg:'Error al registrar','error'); }
-  cargarEstadoJornada();
+  var marca = window.__marcaEnCurso || {};
+  if(r && r.ok){
+    var accionTexto = marca.tipo === 'salida' ? 'Salida de' : 'Llegada a';
+    var hora = horaCorta(r.hora || '');
+    mostrarConfirmacionJornada(
+      r.yaExistia ? 'Ya estaba registrado' : '¡Listo, quedó registrado!',
+      accionTexto + ' ' + TEXTO_BASE[marca.base || r.base || ''] + (hora ? ' — ' + hora : '') + '.'
+    );
+  } else {
+    mostrarToast((r&&r.msg)?r.msg:'Error al registrar','error');
+  }
+  // Pequeño margen antes de volver a preguntar el estado, para que el guardado quede asentado.
+  setTimeout(cargarEstadoJornada, 400);
+};
+
+// ---------- Confirmación clara (no un toast que se pierde) para no dejar dudas de si se guardó ----------
+function mostrarConfirmacionJornada(titulo, detalle){
+  document.getElementById('tituloConfirmaJornada').textContent = titulo;
+  document.getElementById('detalleConfirmaJornada').textContent = detalle;
+  document.getElementById('modalConfirmaJornada').classList.add('visible');
+}
+document.getElementById('btnEntendidoJornada').addEventListener('click', function(){
+  document.getElementById('modalConfirmaJornada').classList.remove('visible');
+});
+
+function deshacerBase(tipo){
+  if (!confirm('¿Deshacer el registro de '+(tipo==='salida'?'salida':'llegada')+' de hoy?')) return;
+  document.getElementById('jornadaCuerpo').innerHTML = '<div style="font-size:13px;color:var(--gris)">Deshaciendo...</div>';
+  var params = { accion:'deshacereventobase', chofer:choferActual, evento: tipo==='salida'?'SALIDA_BASE':'LLEGADA_BASE', callback:'respDeshacerBase' };
+  var qs = Object.keys(params).map(function(k){return encodeURIComponent(k)+'='+encodeURIComponent(params[k]);}).join('&');
+  var s = document.createElement('script');
+  s.src = URL_APPS_SCRIPT + '?' + qs;
+  s.onerror = function(){ mostrarToast('Error de conexión','error'); cargarEstadoJornada(); };
+  document.body.appendChild(s);
+}
+window.respDeshacerBase = function(r){
+  if(r && r.ok){ mostrarToast('Deshecho','exito'); }
+  else { mostrarToast((r&&r.msg)?r.msg:'No se pudo deshacer','error'); }
+  setTimeout(cargarEstadoJornada, 400);
 };
 
 // ---------- Cargar ruta del chofer (Apps Script: inmune a filtros visuales del Sheet) ----------
