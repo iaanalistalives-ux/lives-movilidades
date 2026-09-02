@@ -203,6 +203,13 @@
       </div>
     </div>
 
+    <div class="grid-paneles uno" id="panelFueraHorarioWrap" style="display:none">
+      <div class="panel">
+        <h3>Solicitudes fuera de horario por área <span class="pista">· después de las 4:00pm · clic para ver el detalle</span></h3>
+        <canvas id="chartFueraHorario"></canvas>
+      </div>
+    </div>
+
     <div class="grid-paneles">
       <div class="panel">
         <h3>Ranking por chofer — entregas y tiempo promedio de espera <span class="pista">· clic en una fila</span></h3>
@@ -391,7 +398,8 @@ function procesarDatos(json){
         servicio:  String(row[20]||'ENVIO').trim().toUpperCase(),
         hllegada:  String(row[21]||'').trim(),
         fechanecesidad: String(row[23]||'').trim(),
-        motivocancel:   String(row[25]||'').trim()
+        motivocancel:   String(row[25]||'').trim(),
+        fuerahorario:   String(row[27]||'').trim().toUpperCase()
       };
       if (!o.id) return;
       registros.push(o);
@@ -684,6 +692,42 @@ function aplicarFiltrosYRenderizar(){
       });
     }
   });
+
+  // ---- Gráfico condicional: solicitudes fuera de horario por área ----
+  // Solo se muestra el panel si hay al menos una solicitud fuera de horario en lo filtrado,
+  // para no ensuciar el tablero en días sin ninguna.
+  var fueraHorarioLista = lista.filter(function(o){ return o.fuerahorario === 'SI'; });
+  var panelFH = document.getElementById('panelFueraHorarioWrap');
+  if (fueraHorarioLista.length){
+    panelFH.style.display = '';
+    var conteoAreaFH = {};
+    fueraHorarioLista.forEach(function(o){
+      var a = o.area || '(sin área)';
+      conteoAreaFH[a] = (conteoAreaFH[a]||0) + 1;
+    });
+    var areasFH = Object.keys(conteoAreaFH).sort(function(a,b){ return conteoAreaFH[b]-conteoAreaFH[a]; });
+    var datosFH = areasFH.map(function(a){ return conteoAreaFH[a]; });
+    dibujarBarras('chartFueraHorario', areasFH, [{label:'Fuera de horario', data:datosFH, backgroundColor:'#7C3AED'}], {
+      etiquetas:{pct:true, total: fueraHorarioLista.length},
+      onClickIdx: function(i){
+        var a = areasFH[i];
+        abrirDetalle({
+          titulo:'Fuera de horario — Área: ' + a,
+          subtituloExtra:'Solicitudes registradas después de las 4:00pm (se atienden el siguiente día hábil).',
+          lista: fueraHorarioLista.filter(function(o){ return (o.area||'(sin área)') === a; }),
+          dims:[
+            {t:'Punto / destino', k:'destino'},
+            {t:'Zona', k:'zona'},
+            {t:'Tipo de servicio', k:'servicio'},
+            {t:'Estado', k:'estado'},
+            {t:'Chofer', k:'chofer'}
+          ]
+        });
+      }
+    });
+  } else {
+    panelFH.style.display = 'none';
+  }
 
   // ---- Ranking por chofer ----
   var choferesActivos = Array.from(new Set(lista.map(function(o){return o.chofer;}).filter(Boolean)));

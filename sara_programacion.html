@@ -29,6 +29,8 @@
   .toggle-urg.activo{background:var(--alerta); color:#fff;}
   .toggle-reprog{padding:7px 13px; border:1.5px solid var(--monetario); border-radius:20px; background:#fff; font-size:12px; font-weight:600; color:#92400E; cursor:pointer;}
   .toggle-reprog.activo{background:var(--monetario); color:#fff;}
+  .toggle-fh{padding:7px 13px; border:1.5px solid #7C3AED; border-radius:20px; background:#fff; font-size:12px; font-weight:600; color:#5B21B6; cursor:pointer;}
+  .toggle-fh.activo{background:#7C3AED; color:#fff;}
   .btn-refresh{margin-left:auto; padding:8px 14px; background:var(--esmeralda); color:#fff; border:none; border-radius:7px; font-size:13px; font-weight:600; cursor:pointer;}
 
   .resumen{padding:10px 22px; font-size:13px; color:var(--gris);}
@@ -59,6 +61,7 @@
   .b-traslado{background:#6D28D9; color:#fff;}
   .b-espera{background:#FEF3C7; color:#92400E;}
   .b-reprog{background:var(--monetario); color:#fff;}
+  .b-fh{background:#EDE9FE; color:#5B21B6; font-size:9.5px;}
   .fila-check{display:flex; align-items:flex-start; gap:8px; margin-top:14px;}
   .fila-check input{width:16px; height:16px; margin-top:2px; cursor:pointer; accent-color:var(--monetario);}
   .fila-check label{margin:0 !important; font-size:12.5px; color:var(--petroleo); font-weight:600; cursor:pointer;}
@@ -132,6 +135,7 @@
   </div>
   <span class="toggle-urg" id="toggleUrg">Solo urgentes</span>
   <span class="toggle-reprog" id="toggleReprog">Solo reprogramados</span>
+  <span class="toggle-fh" id="toggleFH">Fuera de horario</span>
   <div class="grupo-filtro">
     <label>Estado:</label>
     <select id="filtroEstado">
@@ -271,7 +275,7 @@ var solicitudes = [];       // todas las filas
 var choferes = [];          // activos
 var puntosBloqueados = {};  // DESTINO(mayus) -> true si tiene PROGRAMADO sin cerrar
 var seleccion = {};         // id -> true
-var filtro = { zona:'', urg:false, reprog:false, estado:'PENDIENTE', tipo:'', buscar:'', chofer:'', fechanecesaria:'' };
+var filtro = { zona:'', urg:false, reprog:false, fh:false, estado:'PENDIENTE', tipo:'', buscar:'', chofer:'', fechanecesaria:'' };
 
 // ---------- Cargar CHOFERES (Apps Script: inmune a filtros visuales del Sheet) ----------
 function cargarChoferes(){
@@ -344,7 +348,8 @@ function procesarSolicitudes(json){
         fechanecesidad: String(row[23]||'').trim(),
         hcancelacion: String(row[24]||'').trim(),
         motivocancelacion: String(row[25]||'').trim(),
-        reprogramado: String(row[26]||'').trim().toUpperCase()
+        reprogramado: String(row[26]||'').trim().toUpperCase(),
+        fuerahorario: String(row[27]||'').trim().toUpperCase()
       };
       if (!o.id) return;
       if (o.id.toUpperCase() === 'ID') return; // descartar fila de encabezado
@@ -374,6 +379,7 @@ function pasaFiltros(o){
   if (filtro.zona && o.zona !== filtro.zona) return false;
   if (filtro.urg && o.prioridad !== 'SI') return false;
   if (filtro.reprog && o.reprogramado !== 'SI') return false;
+  if (filtro.fh && o.fuerahorario !== 'SI') return false;
   if (filtro.tipo && o.tipo !== filtro.tipo) return false;
   if (filtro.chofer && o.chofer !== filtro.chofer) return false;
   if (filtro.fechanecesaria){
@@ -464,7 +470,7 @@ function render(){
           : '')+'</td>'
       + '<td class="id-col">'+o.id+'</td>'
       + '<td style="white-space:nowrap">'+accionesFila+'</td>'
-      + '<td class="fh">'+o.fecha+'</td>'
+      + '<td class="fh">'+o.fecha+(o.fuerahorario==='SI'?'<br><span class="badge b-fh" title="Se solicitó después de las 4:00pm">⏰ FUERA DE HORARIO</span>':'')+'</td>'
       + '<td class="fh">'+(o.fechanecesidad||'—')+(estaVencida(o)?' <span class="badge b-lock" title="La fecha en que se necesitaba ya pasó y sigue sin cerrarse">⚠️ vencida</span>':'')+'</td>'
       + '<td>'+badgeServ+'</td>'
       + '<td>'+(o.prioridad==='SI'?'<span class="badge b-urg">URGENTE</span>':'<span style="color:#9CA3AF">Normal</span>')+'</td>'
@@ -702,6 +708,7 @@ document.getElementById('btnExcel').addEventListener('click', function(){
       'Fecha Necesaria': o.fechanecesidad, 'Motivo No Entrega': o.motivo,
       'Fecha/Hora Cancelación': o.hcancelacion, 'Motivo Cancelación': o.motivocancelacion,
       'Reprogramado': o.reprogramado==='SI'?'SI':'NO',
+      'Fuera de Horario': o.fuerahorario==='SI'?'SI':'NO',
       'Comentarios': o.comentarios
     };
   });
@@ -727,6 +734,9 @@ document.getElementById('toggleUrg').addEventListener('click', function(){
 });
 document.getElementById('toggleReprog').addEventListener('click', function(){
   filtro.reprog = !filtro.reprog; this.classList.toggle('activo', filtro.reprog); render();
+});
+document.getElementById('toggleFH').addEventListener('click', function(){
+  filtro.fh = !filtro.fh; this.classList.toggle('activo', filtro.fh); render();
 });
 document.getElementById('filtroEstado').addEventListener('change', function(){ filtro.estado=this.value; render(); });
 document.getElementById('filtroTipo').addEventListener('change', function(){ filtro.tipo=this.value; render(); });

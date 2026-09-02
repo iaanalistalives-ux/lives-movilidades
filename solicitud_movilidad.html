@@ -103,6 +103,15 @@
   .grid-fotos-modal{display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:10px; margin-bottom:14px; max-height:55vh; overflow-y:auto;}
   .grid-fotos-modal a{display:block; border-radius:8px; overflow:hidden; border:1px solid var(--borde);}
   .grid-fotos-modal img{width:100%; height:120px; object-fit:cover; display:block;}
+
+  .aviso-horario{background:#fff; border:2px solid var(--monetario); border-radius:12px; padding:22px; text-align:center; margin-bottom:0;}
+  .aviso-horario .icono{font-size:34px; margin-bottom:8px;}
+  .aviso-horario h2{color:#92400E; font-size:18px; margin-bottom:10px;}
+  .aviso-horario p{color:var(--gris); font-size:14px; line-height:1.5; margin-bottom:18px;}
+  .aviso-horario .fila-botones{display:flex; gap:10px; flex-wrap:wrap; justify-content:center;}
+  .aviso-horario .btn-aceptar-fh{padding:12px 22px; border:none; border-radius:8px; background:var(--monetario); color:#fff; font-weight:700; font-size:14px; cursor:pointer;}
+  .aviso-horario .btn-esperar-fh{padding:12px 22px; border:1.5px solid var(--borde); border-radius:8px; background:#fff; color:var(--gris); font-weight:600; font-size:14px; cursor:pointer;}
+  .tag-fuera-horario{display:inline-block; padding:2px 8px; border-radius:11px; font-size:10.5px; font-weight:700; background:#FFFBEB; color:#92400E; border:1px solid #FDE68A; margin-left:6px;}
 </style>
 </head>
 <body>
@@ -112,6 +121,24 @@
 </header>
 
 <div class="contenedor">
+  <div class="tarjeta aviso-horario" id="avisoHorario" style="display:none">
+    <div class="icono">⏰</div>
+    <h2>Estás fuera del horario de atención</h2>
+    <p>
+      Las solicitudes se programan hasta las <b>4:00pm</b>. Pasada esa hora, lo que registres
+      <b>no se programará el mismo día</b> — recién se atenderá el siguiente día hábil.<br><br>
+      Si de todas formas necesitas dejarla registrada, puedes continuar: quedará marcada como
+      <b>fuera de horario</b> para que la encargada de movilidades lo sepa.
+    </p>
+    <div class="fila-botones">
+      <button type="button" class="btn-esperar-fh" id="btnEsperarFH">Prefiero volver antes de las 4pm</button>
+      <button type="button" class="btn-aceptar-fh" id="btnAceptarFH">Entendido, continuar de todos modos</button>
+    </div>
+  </div>
+  <div class="tarjeta" id="mensajeEsperarFH" style="display:none; text-align:center; color:var(--gris); font-size:14px;">
+    Sin problema. Puedes volver a esta misma página mañana antes de las 4:00pm para registrar tu solicitud a tiempo.
+  </div>
+
   <div class="tarjeta" id="formulario">
     <label>Área solicitante</label>
     <input type="text" id="area" placeholder="Ej.: Avíos, Almacén, Comercial..." autocomplete="off" list="listaAreas">
@@ -253,6 +280,27 @@ var URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbwY21RREcAXwgrruP
 
 var directorio = [];   // {nombre, distrito, zona}
 var sel = { origen:'', tipo:'', prioridad:'NO', servicio:'ENVIO' };
+var fueraDeHorarioAceptado = false;
+
+// --- Corte fijo 4:00pm, todos los días. Se evalúa ANTES de mostrar el formulario. ---
+// Nota: usa la hora del dispositivo de quien solicita (se asume Perú/Lima). El backend
+// vuelve a verificar con la hora del servidor al guardar, así que esto es solo para
+// avisar a tiempo — lo que queda registrado en el Sheet manda el reloj del servidor.
+(function verificarHorario(){
+  var hora = new Date().getHours();
+  if (hora < 16){ fueraDeHorarioAceptado = false; return; }
+  document.getElementById('formulario').style.display = 'none';
+  document.getElementById('avisoHorario').style.display = 'block';
+})();
+document.getElementById('btnAceptarFH').addEventListener('click', function(){
+  fueraDeHorarioAceptado = true;
+  document.getElementById('avisoHorario').style.display = 'none';
+  document.getElementById('formulario').style.display = 'block';
+});
+document.getElementById('btnEsperarFH').addEventListener('click', function(){
+  document.getElementById('avisoHorario').style.display = 'none';
+  document.getElementById('mensajeEsperarFH').style.display = 'block';
+});
 
 // --- Fecha de necesidad: por defecto hoy, no permite fechas pasadas ---
 (function initFechaNecesidad(){
@@ -769,6 +817,7 @@ function procesarConsulta(json){
         motivo:String(row[15]||''), servicio:String(row[20]||'ENVIO').toUpperCase(),
         fechanecesidad:String(row[23]||''),
         foto:String(row[19]||'').trim(),
+        fuerahorario:String(row[27]||'').trim().toUpperCase(),
         num:(function(){var m=String(row[0]||'').match(/MOV-(\d+)/);return m?parseInt(m[1],10):0;})()
       });
     });
@@ -797,7 +846,7 @@ function procesarConsulta(json){
     if(o.estado==='NO ENTREGADO' && o.motivo) extra='Motivo: '+o.motivo;
     var serv = o.servicio==='RECOJO' ? '📥 Recojo' : o.servicio==='TRASLADO' ? '🔄 Traslado' : '📤 Envío';
     html += '<div class="item-consulta">'
-      + '<div class="linea1"><span class="id">'+o.id+' · '+serv+'</span>'+badge(o.estado)+'</div>'
+      + '<div class="linea1"><span class="id">'+o.id+' · '+serv+'</span>'+badge(o.estado)+(o.fuerahorario==='SI'?'<span class="tag-fuera-horario" title="Se solicitó después de las 4:00pm">⏰ Fuera de horario</span>':'')+'</div>'
       + '<div class="dest">'+o.destino+' <span style="color:#9CA3AF">('+o.distrito+')</span></div>'
       + '<div class="meta">'+o.fecha+(o.fechanecesidad?' · Necesitado para: '+o.fechanecesidad:'')+(mostrarArea&&o.area?' · Área: '+o.area:'')+(extra?' · '+extra:'')+'</div>'
       + (o.fotos.length ? '<button type="button" class="btn-ver-fotos" onclick="abrirFotosConsulta(\''+o.id+'\')">📷 Ver fotos ('+o.fotos.length+')</button>' : '')
