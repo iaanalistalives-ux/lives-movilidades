@@ -115,6 +115,9 @@
   .pill.ENTREGADO{background:#D1FAE5; color:#065F46;}
   .pill.NO_ENTREGADO{background:#FEE2E2; color:#991B1B;}
   .pill.CANCELADO{background:#E5E7EB; color:#374151;}
+  .pill.OK{background:#D1FAE5; color:#065F46;}
+  .pill.SIN_SALIDA, .pill.SIN_LLEGADA_BASE, .pill.SIN_PUNTOS{background:#FEF3C7; color:#92400E;}
+  .pill.ERROR_API, .pill.SIN_CONFIG{background:#FEE2E2; color:#991B1B;}
   .urg{color:var(--alerta); font-weight:700;}
 
   @media (max-width:900px){ .grid-paneles{grid-template-columns:1fr;} }
@@ -221,6 +224,15 @@
         <h3>Ranking por punto/destino — más frecuentes <span class="pista">· clic en una fila</span></h3>
         <table class="rank" id="tablaPuntos"><thead>
           <tr><th>Punto</th><th>Zona</th><th>Solicitudes</th><th></th></tr>
+        </thead><tbody></tbody></table>
+      </div>
+    </div>
+
+    <div class="grid-paneles uno">
+      <div class="panel">
+        <h3>Kilometraje por chofer <span class="pista">· calculado automáticamente cada madrugada con las marcas de GPS</span></h3>
+        <table class="rank" id="tablaKm"><thead>
+          <tr><th>Fecha</th><th>Chofer</th><th>Km</th><th>Paradas</th><th>Salida</th><th>Llegada</th><th>Estado</th></tr>
         </thead><tbody></tbody></table>
       </div>
     </div>
@@ -359,6 +371,7 @@ function iniciar(){
     aplicarFiltrosYRenderizar();
   } else {
     cargarSolicitudes();
+    cargarKm();
   }
 }
 
@@ -369,6 +382,60 @@ function cargarSolicitudes(){
   s.src = URL_APPS_SCRIPT + '?accion=listarsolicitudes&callback=procesarDatos&_=' + Date.now();
   s.onerror = function(){ document.getElementById('cargandoMsg').textContent='Error al cargar. Revisa tu conexión.'; };
   document.body.appendChild(s);
+}
+
+// ---------- Kilometraje por chofer (lo calcula el robot diario en Code.gs) ----------
+var registrosKm = [];
+function cargarKm(){
+  var s = document.createElement('script');
+  s.src = URL_APPS_SCRIPT + '?accion=listarkm&callback=procesarKm&_=' + Date.now();
+  document.body.appendChild(s);
+}
+function procesarKm(json){
+  registrosKm = [];
+  try{
+    var filas = (json && json.filas) ? json.filas : [];
+    filas.forEach(function(row){
+      registrosKm.push({
+        fecha: String(row[0]||'').trim(), chofer: String(row[1]||'').trim(),
+        km: String(row[2]||'').trim(), paradas: String(row[3]||'').trim(),
+        salida: String(row[4]||'').trim(), llegada: String(row[5]||'').trim(),
+        estado: String(row[6]||'').trim(), detalle: String(row[7]||'').trim()
+      });
+    });
+  }catch(e){}
+  registrosKm.sort(function(a,b){ return a.fecha < b.fecha ? 1 : (a.fecha > b.fecha ? -1 : a.chofer.localeCompare(b.chofer)); });
+  renderTablaKm();
+}
+window.procesarKm = procesarKm;
+
+function renderTablaKm(){
+  var tbody = document.querySelector('#tablaKm tbody');
+  if (!tbody) return;
+  var lista = registrosKm.filter(function(r){
+    if (filtro.chofer && r.chofer !== filtro.chofer) return false;
+    if (filtro.desde && r.fecha < filtro.desde) return false;
+    if (filtro.hasta && r.fecha > filtro.hasta) return false;
+    return true;
+  });
+  if (!lista.length){
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--gris)">'
+      + (registrosKm.length ? 'Sin datos con estos filtros' : 'Aún no hay kilometraje calculado. Corre una vez el robot diario en Code.gs, o espera a que corra solo mañana de madrugada.')
+      + '</td></tr>';
+    return;
+  }
+  tbody.innerHTML = lista.map(function(r){
+    var claseEstado = (r.estado.split(' ')[0] || '').replace(/[^A-Z_]/g,'');
+    return '<tr>'
+      + '<td>'+esc(r.fecha)+'</td>'
+      + '<td>'+esc(r.chofer)+'</td>'
+      + '<td><strong>'+(r.km ? esc(r.km)+' km' : '—')+'</strong></td>'
+      + '<td>'+esc(r.paradas)+'</td>'
+      + '<td>'+esc(r.salida)+'</td>'
+      + '<td>'+esc(r.llegada||'—')+'</td>'
+      + '<td><span class="pill '+claseEstado+'" title="'+esc(r.detalle)+'">'+esc(r.estado)+'</span></td>'
+      + '</tr>';
+  }).join('');
 }
 
 function procesarDatos(json){
@@ -761,6 +828,8 @@ function aplicarFiltrosYRenderizar(){
     return '<tr class="clicable" data-punto="'+esc(r.punto)+'"><td>'+esc(r.punto)+'</td><td>'+esc(r.zona)+'</td><td>'+r.n+'</td>'
       + '<td><div class="barra-mini-cont"><div class="barra-mini" style="width:'+pct+'%;background:var(--petroleo)"></div></div></td></tr>';
   }).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--gris)">Sin datos con estos filtros</td></tr>';
+
+  renderTablaKm();
 }
 
 // ---------- Helpers Chart.js ----------

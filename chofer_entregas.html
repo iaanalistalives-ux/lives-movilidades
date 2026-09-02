@@ -24,6 +24,15 @@
   .resumen{font-size:13px; color:var(--gris); margin:0 4px 12px;}
   .resumen b{color:var(--petroleo);}
 
+  .jornada{background:#fff; border-radius:12px; padding:16px; box-shadow:0 2px 8px rgba(14,59,54,.08); margin-bottom:16px; display:none;}
+  .jornada.visible{display:block;}
+  .jornada .titulo{font-size:13px; font-weight:700; color:var(--petroleo); margin-bottom:10px;}
+  .jornada .elegir{display:flex; gap:8px;}
+  .jornada .elegir button{flex:1; padding:12px 8px; border:1.5px solid var(--borde); border-radius:8px; background:#fff; font-size:13px; font-weight:700; color:var(--petroleo); cursor:pointer;}
+  .jornada .elegir button:active{background:var(--fondo);}
+  .jornada .confirmado{display:flex; align-items:center; gap:8px; background:#ECFDF5; border:1px solid #A7F3D0; border-radius:8px; padding:10px 12px; font-size:13px; color:#065F46; font-weight:600;}
+  .jornada .confirmado .icono{font-size:16px;}
+
   .card{background:#fff; border-radius:12px; padding:16px; box-shadow:0 2px 8px rgba(14,59,54,.08); margin-bottom:14px; border-left:5px solid var(--esmeralda);}
   .card.urgente{border-left-color:var(--alerta);}
   .card .top{display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;}
@@ -92,6 +101,11 @@
     <button class="refrescar" id="btnRefrescar">Actualizar mi ruta</button>
   </div>
 
+  <div class="jornada" id="jornada">
+    <div class="titulo">🚀 Empezar jornada — ¿de qué planta saliste?</div>
+    <div id="jornadaCuerpo"></div>
+  </div>
+
   <div class="resumen" id="resumen"></div>
   <div id="lista"></div>
 </div>
@@ -133,7 +147,7 @@ function procesarChoferes(json){
   // Recordar último chofer en este dispositivo
   try{
     var g = localStorage.getItem('lives_chofer');
-    if(g){ sel.value=g; if(sel.value){ choferActual=g; cargarRuta(); } }
+    if(g){ sel.value=g; if(sel.value){ choferActual=g; cargarRuta(); cargarEstadoJornada(); } }
   }catch(e){}
 }
 window.procesarChoferes = procesarChoferes;
@@ -141,12 +155,79 @@ window.procesarChoferes = procesarChoferes;
 document.getElementById('selChofer').addEventListener('change', function(){
   choferActual = this.value;
   try{ localStorage.setItem('lives_chofer', choferActual); }catch(e){}
-  if(choferActual) cargarRuta();
-  else { document.getElementById('lista').innerHTML=''; document.getElementById('resumen').innerHTML=''; }
+  if(choferActual){ cargarRuta(); cargarEstadoJornada(); }
+  else { document.getElementById('lista').innerHTML=''; document.getElementById('resumen').innerHTML=''; document.getElementById('jornada').className='jornada'; }
 });
 document.getElementById('btnRefrescar').addEventListener('click', function(){
   if(choferActual) cargarRuta(); else mostrarToast('Selecciona tu nombre primero','error');
 });
+
+// ---------- Jornada: salida/llegada de base (para el kilometraje) ----------
+function cargarEstadoJornada(){
+  var s = document.createElement('script');
+  s.src = URL_APPS_SCRIPT + '?accion=bitacorahoy&chofer=' + encodeURIComponent(choferActual) + '&callback=procesarJornada&_=' + Date.now();
+  document.body.appendChild(s);
+}
+window.procesarJornada = function(r){
+  if(!r || !r.ok) return;
+  renderJornada(r.salida || null, r.llegada || null);
+};
+
+function renderJornada(salida, llegada){
+  var cont = document.getElementById('jornada');
+  var cuerpo = document.getElementById('jornadaCuerpo');
+  var titulo = cont.querySelector('.titulo');
+  cont.className = 'jornada visible';
+
+  if(!salida){
+    titulo.textContent = '🚀 Empezar jornada — ¿de qué planta saliste?';
+    cuerpo.innerHTML =
+        '<div class="elegir">'
+      + '<button type="button" onclick="marcarBase(\'salida\',\'BARRANCO\')">Salí de Barranco</button>'
+      + '<button type="button" onclick="marcarBase(\'salida\',\'CHORRILLOS\')">Salí de Chorrillos</button>'
+      + '</div>';
+    return;
+  }
+  if(salida && !llegada){
+    titulo.textContent = '🏁 Terminar jornada — ¿a qué planta volviste?';
+    cuerpo.innerHTML =
+        '<div class="confirmado"><span class="icono">✓</span> Jornada iniciada desde '+salida.base+' a las '+horaCorta(salida.hora)+'</div>'
+      + '<div class="elegir" style="margin-top:10px">'
+      + '<button type="button" onclick="marcarBase(\'llegada\',\'BARRANCO\')">Volví a Barranco</button>'
+      + '<button type="button" onclick="marcarBase(\'llegada\',\'CHORRILLOS\')">Volví a Chorrillos</button>'
+      + '</div>';
+    return;
+  }
+  titulo.textContent = '✓ Jornada de hoy completa';
+  cuerpo.innerHTML =
+      '<div class="confirmado" style="margin-bottom:8px"><span class="icono">🚀</span> Salida: '+salida.base+' — '+horaCorta(salida.hora)+'</div>'
+    + '<div class="confirmado"><span class="icono">🏁</span> Llegada: '+(llegada.base||salida.base)+' — '+horaCorta(llegada.hora)+'</div>';
+}
+
+function horaCorta(fh){
+  var m = String(fh||'').match(/(\d{2}):(\d{2})/);
+  return m ? (m[1]+':'+m[2]) : (fh||'');
+}
+
+function marcarBase(tipo, base){
+  var botones = document.querySelectorAll('#jornadaCuerpo button');
+  botones.forEach(function(b){ b.disabled = true; });
+  document.getElementById('jornadaCuerpo').innerHTML = '<div style="font-size:13px;color:var(--gris)">Registrando...</div>';
+  obtenerUbicacion().then(function(u){
+    var accion = tipo === 'salida' ? 'marcarsalidabase' : 'marcarllegadabase';
+    var params = { accion:accion, chofer:choferActual, base:base, lat:u.lat||'', lng:u.lng||'', callback:'respMarcarBase' };
+    var qs = Object.keys(params).map(function(k){return encodeURIComponent(k)+'='+encodeURIComponent(params[k]);}).join('&');
+    var s = document.createElement('script');
+    s.src = URL_APPS_SCRIPT + '?' + qs;
+    s.onerror = function(){ mostrarToast('Error de conexión','error'); cargarEstadoJornada(); };
+    document.body.appendChild(s);
+  });
+}
+window.respMarcarBase = function(r){
+  if(r && r.ok){ mostrarToast(r.yaExistia ? 'Ya estaba registrado' : 'Registrado','exito'); }
+  else { mostrarToast((r&&r.msg)?r.msg:'Error al registrar','error'); }
+  cargarEstadoJornada();
+};
 
 // ---------- Cargar ruta del chofer (Apps Script: inmune a filtros visuales del Sheet) ----------
 function cargarRuta(){
