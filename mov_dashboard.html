@@ -25,6 +25,12 @@
   .grupo label{font-size:12px; font-weight:600; color:var(--gris);}
   .grupo select, .grupo input[type=date]{padding:7px 9px; border:1px solid var(--borde); border-radius:7px; font-size:13px;}
   .chip{padding:6px 12px; border:1.5px solid var(--borde); border-radius:20px; background:#fff; font-size:12px; font-weight:600; color:var(--gris); cursor:pointer;}
+  .fila-periodo-km{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:12px;}
+  .chip-periodo-km{padding:6px 12px; border:1.5px solid var(--borde); border-radius:20px; background:#fff; font-size:12px; font-weight:600; color:var(--gris); cursor:pointer;}
+  .chip-periodo-km.activo{background:var(--petroleo); color:#fff; border-color:var(--petroleo);}
+  .nota-periodo-km{font-size:11px; color:var(--gris); font-style:italic; margin-left:4px;}
+  .total-km-periodo{background:var(--bg-soft); border:1px solid var(--borde); border-radius:8px; padding:10px 14px; margin-bottom:12px; font-size:13px; color:var(--petroleo);}
+  .total-km-periodo b{font-size:18px;}
   .chip.activo{background:var(--petroleo); color:#fff; border-color:var(--petroleo);}
   .btn-accion{padding:8px 14px; border-radius:7px; font-size:13px; font-weight:600; cursor:pointer; border:1.5px solid var(--esmeralda); background:#fff; color:#065F46;}
   .btn-accion.solido{background:var(--esmeralda); color:#fff;}
@@ -232,6 +238,14 @@
     <div class="grid-paneles uno">
       <div class="panel">
         <h3>Kilometraje por chofer <span class="pista">· calculado automáticamente cada madrugada con las marcas de GPS</span></h3>
+        <div class="fila-periodo-km">
+          <span class="chip-periodo-km activo" data-periodo="todo">Todo</span>
+          <span class="chip-periodo-km" data-periodo="mesActual">Este mes</span>
+          <span class="chip-periodo-km" data-periodo="mesPasado">Mes pasado</span>
+          <span class="chip-periodo-km" data-periodo="anioActual">Este año</span>
+          <span class="nota-periodo-km">También respeta los filtros de Zona/Chofer/Desde/Hasta de arriba.</span>
+        </div>
+        <div class="total-km-periodo" id="totalKmPeriodo"></div>
         <table class="rank" id="tablaKm"><thead>
           <tr><th>Fecha</th><th>Chofer</th><th>Km</th><th>Paradas</th><th>Salida</th><th>Llegada</th><th>Estado</th></tr>
         </thead><tbody></tbody></table>
@@ -410,15 +424,59 @@ function procesarKm(json){
 }
 window.procesarKm = procesarKm;
 
+var periodoKmActivo = 'todo';
+function rangoPeriodoKm(periodo){
+  var hoy = new Date();
+  function iso(y,m,d){ return y+'-'+('0'+m).slice(-2)+'-'+('0'+d).slice(-2); }
+  if (periodo === 'mesActual'){
+    var y = hoy.getFullYear(), m = hoy.getMonth()+1;
+    var ultimoDia = new Date(y, m, 0).getDate();
+    return { desde: iso(y,m,1), hasta: iso(y,m,ultimoDia) };
+  }
+  if (periodo === 'mesPasado'){
+    var primerDiaMesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    var ultimoDiaMesPasado = new Date(primerDiaMesActual.getTime() - 86400000);
+    var yp = ultimoDiaMesPasado.getFullYear(), mp = ultimoDiaMesPasado.getMonth()+1;
+    return { desde: iso(yp,mp,1), hasta: iso(yp,mp,ultimoDiaMesPasado.getDate()) };
+  }
+  if (periodo === 'anioActual'){
+    var ya = hoy.getFullYear();
+    return { desde: iso(ya,1,1), hasta: iso(ya,12,31) };
+  }
+  return { desde:'', hasta:'' }; // 'todo'
+}
+document.querySelectorAll('.chip-periodo-km').forEach(function(chip){
+  chip.addEventListener('click', function(){
+    document.querySelectorAll('.chip-periodo-km').forEach(function(c){ c.classList.remove('activo'); });
+    this.classList.add('activo');
+    periodoKmActivo = this.getAttribute('data-periodo');
+    renderTablaKm();
+  });
+});
+
 function renderTablaKm(){
   var tbody = document.querySelector('#tablaKm tbody');
   if (!tbody) return;
+  // Se combina el filtro rápido de periodo (Este mes / Mes pasado / Este año) con los
+  // filtros generales del dashboard (Chofer, Desde, Hasta) — manda el más restrictivo de los dos.
+  var rango = rangoPeriodoKm(periodoKmActivo);
+  var desdeEfectivo = [filtro.desde, rango.desde].filter(Boolean).sort().pop() || '';
+  var hastaEfectivo = [filtro.hasta, rango.hasta].filter(Boolean).sort().shift() || '';
   var lista = registrosKm.filter(function(r){
     if (filtro.chofer && r.chofer !== filtro.chofer) return false;
-    if (filtro.desde && r.fecha < filtro.desde) return false;
-    if (filtro.hasta && r.fecha > filtro.hasta) return false;
+    if (desdeEfectivo && r.fecha < desdeEfectivo) return false;
+    if (hastaEfectivo && r.fecha > hastaEfectivo) return false;
     return true;
   });
+
+  var totalKmNum = lista.reduce(function(acc,r){ var n = parseFloat(r.km); return acc + (isNaN(n)?0:n); }, 0);
+  var totalDiv = document.getElementById('totalKmPeriodo');
+  if (totalDiv){
+    totalDiv.innerHTML = registrosKm.length
+      ? ('Total del periodo: <b>'+totalKmNum.toFixed(1)+' km</b> · '+lista.length+' registro(s)')
+      : '';
+  }
+
   if (!lista.length){
     tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--gris)">'
       + (registrosKm.length ? 'Sin datos con estos filtros' : 'Aún no hay kilometraje calculado. Corre una vez el robot diario en Code.gs, o espera a que corra solo mañana de madrugada.')
