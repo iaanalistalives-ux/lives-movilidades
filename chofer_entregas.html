@@ -30,6 +30,8 @@
   .jornada .elegir{display:flex; gap:8px;}
   .jornada .elegir button{flex:1; padding:12px 8px; border:1.5px solid var(--borde); border-radius:8px; background:#fff; font-size:13px; font-weight:700; color:var(--petroleo); cursor:pointer;}
   .jornada .elegir button:active{background:var(--fondo);}
+  .jornada .btn-otro-punto{width:100%; margin-top:8px; padding:11px 8px; border:1.5px dashed var(--esmeralda); border-radius:8px; background:#fff; font-size:12.5px; font-weight:700; color:var(--petroleo); cursor:pointer;}
+  .jornada .btn-otro-punto:active{background:var(--fondo);}
   .jornada .confirmado{display:flex; align-items:center; gap:8px; background:#ECFDF5; border:1px solid #A7F3D0; border-radius:8px; padding:10px 12px; font-size:13px; color:#065F46; font-weight:600;}
   .jornada .confirmado .icono{font-size:16px;}
   .jornada .btn-deshacer{width:100%; margin-top:10px; padding:9px 8px; border:none; background:transparent; color:var(--gris); font-size:12px; text-decoration:underline; cursor:pointer;}
@@ -199,38 +201,40 @@ function renderJornada(salida, llegada){
   cont.className = 'jornada visible';
 
   if(!salida){
-    titulo.textContent = '🚀 Empezar jornada — ¿de qué planta saliste?';
+    titulo.textContent = '🚀 Empezar jornada — ¿de dónde saliste?';
     cuerpo.innerHTML =
         '<div class="elegir">'
       + '<button type="button" onclick="marcarBase(\'salida\',\'BARRANCO\')">Salí de Barranco</button>'
       + '<button type="button" onclick="marcarBase(\'salida\',\'CHORRILLOS\')">Salí de Chorrillos</button>'
-      + '</div>';
+      + '</div>'
+      + '<button type="button" class="btn-otro-punto" onclick="marcarBase(\'salida\',\'OTRO\')">📍 Otro punto (mi ubicación actual)</button>';
     return;
   }
   if(salida && !llegada){
-    titulo.textContent = '🏁 Terminar jornada — ¿a qué planta volviste?';
+    titulo.textContent = '🏁 Terminar jornada — ¿dónde terminaste?';
     cuerpo.innerHTML =
-        '<div class="confirmado"><span class="icono">✓</span> Jornada iniciada desde '+salida.base+' a las '+horaCorta(salida.hora)+'</div>'
+        '<div class="confirmado"><span class="icono">✓</span> Jornada iniciada desde '+nombreBaseCorto(salida.base)+'</div>'
       + '<div class="elegir" style="margin-top:10px">'
       + '<button type="button" onclick="marcarBase(\'llegada\',\'BARRANCO\')">Volví a Barranco</button>'
       + '<button type="button" onclick="marcarBase(\'llegada\',\'CHORRILLOS\')">Volví a Chorrillos</button>'
       + '</div>'
+      + '<button type="button" class="btn-otro-punto" onclick="marcarBase(\'llegada\',\'OTRO\')">📍 Otro punto (mi ubicación actual)</button>'
       + '<button type="button" class="btn-deshacer" onclick="deshacerBase(\'salida\')">↩️ Me equivoqué, deshacer la salida</button>';
     return;
   }
   titulo.textContent = '✓ Jornada de hoy completa';
   cuerpo.innerHTML =
-      '<div class="confirmado" style="margin-bottom:8px"><span class="icono">🚀</span> Salida: '+salida.base+' — '+horaCorta(salida.hora)+'</div>'
-    + '<div class="confirmado"><span class="icono">🏁</span> Llegada: '+(llegada.base||salida.base)+' — '+horaCorta(llegada.hora)+'</div>'
+      '<div class="confirmado" style="margin-bottom:8px"><span class="icono">🚀</span> Salida: '+nombreBaseCorto(salida.base)+'</div>'
+    + '<div class="confirmado"><span class="icono">🏁</span> Llegada: '+nombreBaseCorto(llegada.base||salida.base)+'</div>'
     + '<button type="button" class="btn-deshacer" onclick="deshacerBase(\'llegada\')">↩️ Me equivoqué, deshacer la llegada</button>';
 }
 
-function horaCorta(fh){
-  var m = String(fh||'').match(/(\d{2}):(\d{2})/);
-  return m ? (m[1]+':'+m[2]) : (fh||'');
+function nombreBaseCorto(base){
+  if (base === 'OTRO') return 'otro punto (tu ubicación)';
+  return TEXTO_BASE[base] || base || '';
 }
 
-var TEXTO_BASE = { BARRANCO:'Barranco', CHORRILLOS:'Chorrillos' };
+var TEXTO_BASE = { BARRANCO:'Barranco', CHORRILLOS:'Chorrillos', OTRO:'tu ubicación actual (no la planta)' };
 function marcarBase(tipo, base){
   var verbo = tipo === 'salida' ? 'saliste de' : 'volviste a';
   if (!confirm('¿Seguro que '+verbo+' '+TEXTO_BASE[base]+'?')) return;
@@ -251,11 +255,10 @@ function marcarBase(tipo, base){
 window.respMarcarBase = function(r){
   var marca = window.__marcaEnCurso || {};
   if(r && r.ok){
-    var accionTexto = marca.tipo === 'salida' ? 'Salida de' : 'Llegada a';
-    var hora = horaCorta(r.hora || '');
+    var accionTexto = marca.tipo === 'salida' ? 'Salida desde' : 'Llegada a';
     mostrarConfirmacionJornada(
       r.yaExistia ? 'Ya estaba registrado' : '¡Listo, quedó registrado!',
-      accionTexto + ' ' + TEXTO_BASE[marca.base || r.base || ''] + (hora ? ' — ' + hora : '') + '.'
+      accionTexto + ' ' + nombreBaseCorto(marca.base || r.base || '') + '.'
     );
   } else {
     mostrarToast((r&&r.msg)?r.msg:'Error al registrar','error');
