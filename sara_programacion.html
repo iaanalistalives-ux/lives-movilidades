@@ -79,6 +79,7 @@
   .b-espera{background:#FEF3C7; color:#92400E;}
   .b-reprog{background:var(--monetario); color:#fff;}
   .b-fh{background:#EDE9FE; color:#5B21B6; font-size:9.5px;}
+  .b-arrastrada{background:var(--alerta); color:#fff; font-size:9.5px;}
   .fila-check{display:flex; align-items:flex-start; gap:8px; margin-top:14px;}
   .fila-check input{width:16px; height:16px; margin-top:2px; cursor:pointer; accent-color:var(--monetario);}
   .fila-check label{margin:0 !important; font-size:12.5px; color:var(--petroleo); font-weight:600; cursor:pointer;}
@@ -426,6 +427,14 @@ function parseFechaFlexible(str){
   if (m) return new Date(parseInt(m[3],10), parseInt(m[2],10)-1, parseInt(m[1],10));
   return null;
 }
+// La solicitud se creó un día calendario ANTES de hoy (no importa la hora, solo el día).
+function esDeOtroDia(fechaHoraStr){
+  var f = parseFechaFlexible(fechaHoraStr);
+  if (!f) return false;
+  var hoy = new Date();
+  var hoy0 = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+  return f < hoy0;
+}
 function estaVencida(o){
   if (o.estado==='ENTREGADO' || o.estado==='NO ENTREGADO') return false;
   var f = parseFechaFlexible(o.fechanecesidad);
@@ -492,7 +501,10 @@ function render(){
           : '')+'</td>'
       + '<td class="id-col">'+o.id+'</td>'
       + '<td style="white-space:nowrap">'+accionesFila+'</td>'
-      + '<td class="fh">'+o.fecha+(o.fuerahorario==='SI'?'<br><span class="badge b-fh" title="Se solicitó después de las 4:00pm">⏰ FUERA DE HORARIO</span>':'')+'</td>'
+      + '<td class="fh">'+o.fecha
+        +(o.fuerahorario==='SI'?'<br><span class="badge b-fh" title="Se solicitó después de las 4:00pm">⏰ FUERA DE HORARIO</span>':'')
+        +(o.fuerahorario==='SI' && o.estado==='PENDIENTE' && esDeOtroDia(o.fecha)?'<br><span class="badge b-arrastrada" title="Llegó fuera de horario y sigue sin programarse desde entonces — priorizar">⏳ PENDIENTE DESDE AYER</span>':'')
+        +'</td>'
       + '<td class="fh">'+(o.fechanecesidad||'—')+(estaVencida(o)?' <span class="badge b-lock" title="La fecha en que se necesitaba ya pasó y sigue sin cerrarse">⚠️ vencida</span>':'')+'</td>'
       + '<td>'+badgeServ+'</td>'
       + '<td>'+(o.prioridad==='SI'?'<span class="badge b-urg">URGENTE</span>':'<span style="color:#9CA3AF">Normal</span>')+'</td>'
