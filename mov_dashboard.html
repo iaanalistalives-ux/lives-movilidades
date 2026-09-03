@@ -1258,7 +1258,7 @@ document.getElementById('fChofer').addEventListener('change', function(){ filtro
 document.getElementById('fServicio').addEventListener('change', function(){ filtro.servicio=this.value; cerrarModal(); aplicarFiltrosYRenderizar(); });
 document.getElementById('fDesde').addEventListener('change', function(){ filtro.desde=this.value; cerrarModal(); aplicarFiltrosYRenderizar(); });
 document.getElementById('fHasta').addEventListener('change', function(){ filtro.hasta=this.value; cerrarModal(); aplicarFiltrosYRenderizar(); });
-document.getElementById('btnActualizar').addEventListener('click', function(){ cerrarModal(); cargarSolicitudes(); });
+document.getElementById('btnActualizar').addEventListener('click', function(){ cerrarModal(); cargarSolicitudes(); cargarKm(); });
 
 function mostrarToast(msg, tipo){
   var t = document.getElementById('toast'); t.textContent=msg; t.className='toast '+tipo;
