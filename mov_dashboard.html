@@ -354,6 +354,13 @@
             <tr><th>Fecha</th><th>Chofer</th><th>Km</th><th>Paradas</th><th>Salida</th><th>Llegada</th><th>Estado</th></tr>
           </thead><tbody></tbody></table>
         </div>
+        <div class="panel col12">
+          <div class="pt">Veces sin ubicación por chofer</div>
+          <div class="ph">Cuando el GPS falló o el chofer eligió "Continuar sin ubicación" — respeta los mismos filtros de arriba. Números altos y sostenidos valen la pena conversarlos.</div>
+          <table class="rank" id="tablaSinGps"><thead>
+            <tr><th>Chofer</th><th>Entregas sin GPS</th><th>Marcas de jornada sin GPS</th><th>Total</th></tr>
+          </thead><tbody></tbody></table>
+        </div>
       </div>
     </div>
 
@@ -523,6 +530,7 @@ function iniciar(){
   } else {
     cargarSolicitudes();
     cargarKm();
+    cargarBitacora();
   }
 }
 
@@ -582,6 +590,74 @@ function poblarSelectoresPeriodoKm(){
   if (anios.indexOf(valorAnioPrevio) > -1) selAnio.value = valorAnioPrevio;
 }
 window.procesarKm = procesarKm;
+
+// ---------- Bitácora de jornada (salida/llegada de base) — para detectar marcas sin GPS ----------
+var registrosBitacora = [];
+function cargarBitacora(){
+  var s = document.createElement('script');
+  s.src = URL_APPS_SCRIPT + '?accion=listarbitacora&callback=procesarBitacora&_=' + Date.now();
+  document.body.appendChild(s);
+}
+function procesarBitacora(json){
+  registrosBitacora = [];
+  try{
+    var filas = (json && json.filas) ? json.filas : [];
+    filas.forEach(function(row){
+      registrosBitacora.push({
+        fecha: String(row[0]||'').trim(), chofer: String(row[1]||'').trim(),
+        evento: String(row[2]||'').trim(), hora: String(row[3]||'').trim(),
+        ubicacion: String(row[4]||'').trim(), base: String(row[5]||'').trim()
+      });
+    });
+  }catch(e){}
+  renderTablaSinGps();
+}
+window.procesarBitacora = procesarBitacora;
+
+// ---------- Veces sin ubicación por chofer (entregas cerradas + marcas de jornada) ----------
+function renderTablaSinGps(){
+  var tbody = document.querySelector('#tablaSinGps tbody');
+  if (!tbody) return;
+
+  var entregasSinGps = {};
+  listaFiltradaActual.forEach(function(o){
+    var cerrada = (o.estado === 'ENTREGADO' || o.estado === 'NO ENTREGADO');
+    if (!cerrada) return;
+    if (o.ubicllegada || o.ubicentrega) return; // tiene GPS en al menos un punto, no cuenta
+    if (!o.chofer) return;
+    entregasSinGps[o.chofer] = (entregasSinGps[o.chofer]||0) + 1;
+  });
+
+  var jornadaSinGps = {};
+  registrosBitacora.forEach(function(r){
+    if (filtro.chofer && r.chofer !== filtro.chofer) return;
+    if (filtro.desde && r.fecha < filtro.desde) return;
+    if (filtro.hasta && r.fecha > filtro.hasta) return;
+    if (r.ubicacion) return; // tiene GPS, no cuenta
+    if (!r.chofer) return;
+    jornadaSinGps[r.chofer] = (jornadaSinGps[r.chofer]||0) + 1;
+  });
+
+  var choferes = Array.from(new Set(Object.keys(entregasSinGps).concat(Object.keys(jornadaSinGps))));
+  var filas = choferes.map(function(ch){
+    var e = entregasSinGps[ch] || 0, j = jornadaSinGps[ch] || 0;
+    return { chofer: ch, entregas: e, jornada: j, total: e + j };
+  }).filter(function(f){ return f.total > 0; })
+    .sort(function(a,b){ return b.total - a.total; });
+
+  if (!filas.length){
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--gris)">Sin registros sin ubicación en este periodo — todo con GPS.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = filas.map(function(f){
+    return '<tr>'
+      + '<td>'+esc(f.chofer)+'</td>'
+      + '<td>'+fmtInt(f.entregas)+'</td>'
+      + '<td>'+fmtInt(f.jornada)+'</td>'
+      + '<td><strong'+(f.total>=10?' style="color:var(--alerta)"':'')+'>'+fmtInt(f.total)+'</strong></td>'
+      + '</tr>';
+  }).join('');
+}
 
 var periodoKmActivo = 'todo';
 var mesEspecificoValor = '', anioEspecificoValor = '';
@@ -721,9 +797,11 @@ function procesarDatos(json){
         estado:    String(row[14]||'PENDIENTE').trim().toUpperCase(),
         motivo:    String(row[15]||'').trim(),
         hentrega:  String(row[16]||'').trim(),
+        ubicentrega: String(row[18]||'').trim(),
         hprog:     String(row[17]||'').trim(),
         servicio:  String(row[20]||'ENVIO').trim().toUpperCase(),
         hllegada:  String(row[21]||'').trim(),
+        ubicllegada: String(row[22]||'').trim(),
         fechanecesidad: String(row[23]||'').trim(),
         motivocancel:   String(row[25]||'').trim(),
         fuerahorario:   String(row[27]||'').trim().toUpperCase()
@@ -1106,6 +1184,7 @@ function aplicarFiltrosYRenderizar(){
   }).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--gris)">Sin datos con estos filtros</td></tr>';
 
   renderTablaKm();
+  renderTablaSinGps();
 }
 
 // ---------- Helpers Chart.js ----------
@@ -1543,7 +1622,7 @@ document.getElementById('fChofer').addEventListener('change', function(){ filtro
 document.getElementById('fServicio').addEventListener('change', function(){ filtro.servicio=this.value; cerrarModal(); aplicarFiltrosYRenderizar(); });
 document.getElementById('fDesde').addEventListener('change', function(){ filtro.desde=this.value; cerrarModal(); aplicarFiltrosYRenderizar(); });
 document.getElementById('fHasta').addEventListener('change', function(){ filtro.hasta=this.value; cerrarModal(); aplicarFiltrosYRenderizar(); });
-document.getElementById('btnActualizar').addEventListener('click', function(){ cerrarModal(); cargarSolicitudes(); cargarKm(); });
+document.getElementById('btnActualizar').addEventListener('click', function(){ cerrarModal(); cargarSolicitudes(); cargarKm(); cargarBitacora(); });
 
 function mostrarToast(msg, tipo){
   var t = document.getElementById('toast'); t.textContent=msg; t.className='toast '+tipo;
