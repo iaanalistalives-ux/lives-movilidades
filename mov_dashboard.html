@@ -396,6 +396,21 @@
   </div>
 </div>
 
+<div class="modal-fondo" id="modalEstadoKm">
+  <div class="modal-caja" style="max-width:560px">
+    <div class="modal-header">
+      <div>
+        <h2 id="modalEstadoKmTitulo">Estado</h2>
+        <span class="sub" id="modalEstadoKmSub"></span>
+      </div>
+      <button class="modal-cerrar" id="btnCerrarEstadoKm">✕ Cerrar</button>
+    </div>
+    <div class="modal-cuerpo">
+      <div id="modalEstadoKmDetalle" style="white-space:pre-wrap; font-size:13px; line-height:1.7; color:#333;"></div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 <footer>LIVES · Sistema de Movilidades · Uso interno</footer>
 
@@ -760,8 +775,10 @@ function renderTablaKm(){
   // confundir, ya que no siempre coincide con la hora real de inicio/fin de la jornada.
   function soloSede(texto){ return texto ? texto.split(' · ')[0] : ''; }
 
-  tbody.innerHTML = lista.map(function(r){
+  tbody.innerHTML = lista.map(function(r, idx){
     var claseEstado = (r.estado.split(' ')[0] || '').replace(/[^A-Z_]/g,'');
+    var textoCorto = r.estado.split(' (')[0]; // "PARCIAL" en vez de "PARCIAL (sin marca de...)"
+    var tieneDetalle = r.estado.indexOf('(') > -1 || !!r.detalle;
     return '<tr>'
       + '<td>'+esc(r.fecha)+'</td>'
       + '<td>'+esc(r.chofer)+'</td>'
@@ -769,10 +786,36 @@ function renderTablaKm(){
       + '<td>'+esc(r.paradas)+'</td>'
       + '<td title="'+esc(r.salida)+'">'+esc(soloSede(r.salida)||'—')+'</td>'
       + '<td title="'+esc(r.llegada)+'">'+esc(soloSede(r.llegada)||'—')+'</td>'
-      + '<td><span class="pill '+claseEstado+'" title="'+esc(r.detalle)+'">'+esc(r.estado)+'</span></td>'
+      + '<td>'+(tieneDetalle
+          ? '<button type="button" class="pill '+claseEstado+'" style="border:none;cursor:pointer;font-family:inherit" onclick="abrirEstadoKm('+idx+')">'+esc(textoCorto)+' 🔍</button>'
+          : '<span class="pill '+claseEstado+'">'+esc(textoCorto)+'</span>')
+        + '</td>'
       + '</tr>';
   }).join('');
+  window.__listaKmVisible = lista; // para que abrirEstadoKm pueda leer el detalle completo por indice
 }
+
+function abrirEstadoKm(idx){
+  var r = (window.__listaKmVisible || [])[idx];
+  if (!r) return;
+  document.getElementById('modalEstadoKmTitulo').textContent = r.chofer + ' — ' + r.fecha;
+  document.getElementById('modalEstadoKmSub').textContent = 'Estado: ' + r.estado.split(' (')[0];
+  var partes = [];
+  var idxParen = r.estado.indexOf('(');
+  if (idxParen > -1){
+    var idxCierre = r.estado.lastIndexOf(')');
+    partes.push(idxCierre > idxParen ? r.estado.slice(idxParen+1, idxCierre) : r.estado.slice(idxParen+1));
+  }
+  if (r.detalle) partes.push('Detalle del cálculo:\n' + r.detalle.split(' | ').join('\n'));
+  document.getElementById('modalEstadoKmDetalle').textContent = partes.join('\n\n') || 'Sin más detalle disponible.';
+  document.getElementById('modalEstadoKm').classList.add('visible');
+}
+document.getElementById('btnCerrarEstadoKm').addEventListener('click', function(){
+  document.getElementById('modalEstadoKm').classList.remove('visible');
+});
+document.getElementById('modalEstadoKm').addEventListener('click', function(e){
+  if (e.target === this) this.classList.remove('visible');
+});
 
 function procesarDatos(json){
   registros = [];
