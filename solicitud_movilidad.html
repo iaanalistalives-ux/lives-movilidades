@@ -282,6 +282,55 @@ var directorio = [];   // {nombre, distrito, zona}
 var sel = { origen:'', tipo:'', prioridad:'NO', servicio:'ENVIO' };
 var fueraDeHorarioAceptado = false;
 
+// ============ PROTECCIÓN CONTRA ENVÍOS REPETIDOS ============
+// Cada intento de guardar (traslado, o cada punto de envío/recojo) lleva un identificador
+// único ("idem"). Mientras los datos de ese intento no cambien, se reutiliza el MISMO
+// identificador en cualquier reintento — automático o manual — así el backend reconoce
+// que ya lo guardó y nunca crea una solicitud duplicada. Se guarda en localStorage para
+// que la protección sobreviva incluso si la persona recarga la página y vuelve a intentar.
+function hashDatos(obj){
+  return Object.keys(obj).sort().map(function(k){ return k+'='+obj[k]; }).join('&');
+}
+function generarIdem(){
+  return 'idm' + Date.now().toString(36) + Math.random().toString(36).slice(2,10);
+}
+function obtenerIdem(datosClave, storageKey){
+  var hashActual = hashDatos(datosClave);
+  var guardado = null;
+  try{ guardado = JSON.parse(localStorage.getItem(storageKey) || 'null'); }catch(e){}
+  if (guardado && guardado.hash === hashActual && guardado.idem) return guardado.idem;
+  var nuevo = generarIdem();
+  try{ localStorage.setItem(storageKey, JSON.stringify({hash:hashActual, idem:nuevo})); }catch(e){}
+  return nuevo;
+}
+function limpiarIdem(storageKey){
+  try{ localStorage.removeItem(storageKey); }catch(e){}
+}
+// Variante para envío/recojo: varios puntos a la vez, cada uno con su propio idem,
+// todos guardados juntos bajo una sola llave de localStorage.
+function obtenerIdemLista(datosClave, storageKey, maxGuardados){
+  var hashActual = hashDatos(datosClave);
+  var lista = [];
+  try{ lista = JSON.parse(localStorage.getItem(storageKey) || '[]'); }catch(e){}
+  var encontrado = lista.find(function(x){ return x.hash === hashActual; });
+  if (encontrado) return encontrado.idem;
+  var nuevo = generarIdem();
+  lista.push({hash:hashActual, idem:nuevo});
+  if (lista.length > (maxGuardados||30)) lista = lista.slice(-1 * (maxGuardados||30));
+  try{ localStorage.setItem(storageKey, JSON.stringify(lista)); }catch(e){}
+  return nuevo;
+}
+function limpiarIdemLista(datosClave, storageKey){
+  var hashActual = hashDatos(datosClave);
+  var lista = [];
+  try{ lista = JSON.parse(localStorage.getItem(storageKey) || '[]'); }catch(e){}
+  lista = lista.filter(function(x){ return x.hash !== hashActual; });
+  try{ localStorage.setItem(storageKey, JSON.stringify(lista)); }catch(e){}
+}
+// Respuestas ya procesadas por idem: evita que una respuesta tardía de un intento viejo
+// (que ya fue superado por un reintento) se vuelva a procesar por duplicado.
+var idemsYaProcesados = {};
+
 // --- Corte fijo 4:00pm, todos los días. Se evalúa ANTES de mostrar el formulario. ---
 // Nota: usa la hora del dispositivo de quien solicita (se asume Perú/Lima). El backend
 // vuelve a verificar con la hora del servidor al guardar, así que esto es solo para
@@ -601,16 +650,18 @@ document.getElementById('btnEnviar').addEventListener('click', function(){
   btn.disabled = true; btn.textContent = 'Guardando...';
 
   if (esTraslado){
-    enviarParams({
-      accion:'nueva', area:area, origen:origenPunto.nombre, tipo:sel.tipo, servicio:sel.servicio,
+    var datosClaveTraslado = {
+      area:area, origen:origenPunto.nombre, tipo:sel.tipo, servicio:sel.servicio,
       peso: document.getElementById('peso').value || '',
       cantidad: document.getElementById('cantidad').value || '',
       destino:destinoPunto.nombre, distrito:destinoPunto.distrito, zona:destinoPunto.zona,
       prioridad:sel.prioridad,
       fechanecesidad: document.getElementById('fechaNecesidad').value || '',
-      comentarios: document.getElementById('comentarios').value.trim(),
-      callback:'respuestaGuardarUnico'
-    });
+      comentarios: document.getElementById('comentarios').value.trim()
+    };
+    var idemTraslado = obtenerIdem(datosClaveTraslado, 'lives_idem_traslado');
+    var paramsTraslado = Object.assign({accion:'nueva', callback:'respuestaGuardarUnico', idem:idemTraslado}, datosClaveTraslado);
+    enviarParamsConReintento(paramsTraslado);
   } else {
     idsGenerados = [];
     puntosPendientes = puntosAEnviar.slice();
@@ -619,14 +670,39 @@ document.getElementById('btnEnviar').addEventListener('click', function(){
   }
 });
 
-function enviarParams(params){
+// Reintenta automáticamente (mismo idem, así nunca es riesgoso) si tarda demasiado o
+// falla la conexión — antes de molestar a la persona pidiéndole que reintente a mano.
+function enviarParamsConReintento(params, intentosRestantes){
+  if (intentosRestantes === undefined) intentosRestantes = 2;
+  var yaResolvio = false;
   var qs = Object.keys(params).map(function(k){
     return encodeURIComponent(k)+'='+encodeURIComponent(params[k]);
   }).join('&');
   var s = document.createElement('script');
   s.src = URL_APPS_SCRIPT + '?' + qs;
+
+  var btn = document.getElementById('btnEnviar');
+  var timeoutId = setTimeout(function(){
+    if (yaResolvio) return;
+    yaResolvio = true;
+    if (intentosRestantes > 0){
+      if (btn) btn.textContent = 'Guardando... (reintentando)';
+      enviarParamsConReintento(params, intentosRestantes - 1);
+    } else {
+      manejarErrorEnvio('Está tardando más de lo normal. Revisa tu internet — si presionas Guardar solicitud de nuevo, es seguro, no se duplicará.');
+    }
+  }, 12000);
+
   s.onerror = function(){
-    manejarErrorEnvio('No se pudo conectar. Revisa tu internet e intenta de nuevo.');
+    if (yaResolvio) return;
+    yaResolvio = true;
+    clearTimeout(timeoutId);
+    if (intentosRestantes > 0){
+      if (btn) btn.textContent = 'Guardando... (reintentando)';
+      setTimeout(function(){ enviarParamsConReintento(params, intentosRestantes - 1); }, 800);
+    } else {
+      manejarErrorEnvio('No se pudo conectar. Revisa tu internet — si presionas Guardar solicitud de nuevo, es seguro, no se duplicará.');
+    }
   };
   document.body.appendChild(s);
 }
@@ -641,7 +717,12 @@ function manejarErrorEnvio(texto){
 
 // --- Envío único (traslado) ---
 window.respuestaGuardarUnico = function(r){
+  if (r && r.idem){
+    if (idemsYaProcesados[r.idem]) return; // ya se proceso esta misma respuesta antes (reintento tardio)
+    idemsYaProcesados[r.idem] = true;
+  }
   if (r && r.ok){
+    limpiarIdem('lives_idem_traslado');
     mostrarExito([{id:r.id, destino:''}], true);
   } else {
     manejarErrorEnvio((r && r.msg) ? r.msg : 'Error desconocido al guardar.');
@@ -659,22 +740,30 @@ function enviarSiguientePunto(){
     return;
   }
   var punto = puntosPendientes.shift();
-  window.__puntoEnCurso = punto;
-  enviarParams({
-    accion:'nueva', area:areaEnvioActual, origen:sel.origen, tipo:sel.tipo, servicio:sel.servicio,
+  var datosClavePunto = {
+    area:areaEnvioActual, origen:sel.origen, tipo:sel.tipo, servicio:sel.servicio,
     peso: document.getElementById('peso').value || '',
     cantidad: document.getElementById('cantidad').value || '',
     destino:punto.destino, distrito:punto.distrito, zona:punto.zona,
     prioridad:sel.prioridad,
     fechanecesidad: document.getElementById('fechaNecesidad').value || '',
-    comentarios: punto.comentario || '',
-    callback:'respuestaGuardarPunto'
-  });
+    comentarios: punto.comentario || ''
+  };
+  punto.idem = obtenerIdemLista(datosClavePunto, 'lives_idem_puntos');
+  punto.datosClave = datosClavePunto;
+  window.__puntoEnCurso = punto;
+  var paramsPunto = Object.assign({accion:'nueva', callback:'respuestaGuardarPunto', idem:punto.idem}, datosClavePunto);
+  enviarParamsConReintento(paramsPunto);
 }
 
 window.respuestaGuardarPunto = function(r){
   var punto = window.__puntoEnCurso;
+  if (r && r.idem){
+    if (idemsYaProcesados[r.idem]) return; // ya se proceso esta misma respuesta antes (reintento tardio)
+    idemsYaProcesados[r.idem] = true;
+  }
   if (r && r.ok){
+    if (punto && punto.datosClave) limpiarIdemLista(punto.datosClave, 'lives_idem_puntos');
     idsGenerados.push({id:r.id, destino: punto ? punto.destino : ''});
     // Ya quedó guardado: sacamos su fila del formulario para no reenviarla si hay que reintentar
     if (punto && punto.filaEl){
