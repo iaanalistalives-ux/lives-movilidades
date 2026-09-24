@@ -274,8 +274,75 @@
 
 <script>
 // =============== CONFIGURACIÓN ===============
-var SHEET_ID = '1p8zQ1h7yfufwolkuvfeOWUGMNyCh7r4v35nvXOv0rwg';
-var URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbwY21RREcAXwgrruPzEgAkd_CcEj2PRJSb3ERRFCzOPSAzb2RS2h8zJ1CHDoM0i7UTN/exec';
+// =============== CONEXIÓN A SUPABASE (v2 · 24/09/2026) ===============
+// Esta pantalla ya no usa el Apps Script ni el Sheet: lee y guarda en Supabase (lives-datos).
+// Las filas se entregan con la MISMA forma que tenía la pestaña SOLICITUDES, así el resto de
+// la pantalla no cambió. Si Supabase no responde: un reintento y aviso; nunca queda bloqueada.
+// Formulario de solicitud: funciona SIN sesión (excepción acordada). Solo puede crear
+// solicitudes y consultar las de un área; no puede leer ni cambiar nada más.
+var SB_URL = 'https://xxfufpddgoyhbotjmaiy.supabase.co';
+var SB_KEY = 'sb_publishable_1g-n6UT70EUlNAo8Lyc04w_jKR4LpXZ';   // clave pública
+
+function sbPedir(ruta, opciones){
+  function intento(){
+    var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var reloj = setTimeout(function(){ if (ctl) ctl.abort(); }, 20000);
+    var o = opciones || {};
+    return fetch(SB_URL + ruta, {
+      method: o.method || 'GET', cache: 'no-store', signal: ctl ? ctl.signal : undefined,
+      headers: Object.assign({ 'apikey': SB_KEY, 'Content-Type': 'application/json' }, o.headers || {}),
+      body: o.body
+    }).then(function(r){
+      clearTimeout(reloj);
+      return r.text().then(function(t){
+        var j = null; try{ j = t ? JSON.parse(t) : null; }catch(e){}
+        if (!r.ok){ var err = new Error((j && j.message) || ('Error ' + r.status)); err.status = r.status; throw err; }
+        return j;
+      });
+    }, function(){ clearTimeout(reloj); var err = new Error('No hay conexión con la base de datos. Revisa tu internet y vuelve a intentar.'); err.red = true; throw err; });
+  }
+  return intento().catch(function(e){
+    if (!e.red && e.status && e.status < 500) throw e;          // error de validación o permiso: no se reintenta
+    return new Promise(function(ok){ setTimeout(ok, 1500); }).then(intento);
+  });
+}
+function rpc(fn, args){ return sbPedir('/rest/v1/rpc/' + fn, { method:'POST', body: JSON.stringify(args || {}) }); }
+// Lee una tabla completa por páginas de 1000 (Supabase entrega como máximo 1000 por vez).
+function leerTodo(tabla, orden){
+  var todas = [];
+  function pagina(desde){
+    return sbPedir('/rest/v1/' + tabla + '?select=*&order=' + orden + '&limit=1000&offset=' + desde).then(function(filas){
+      todas = todas.concat(filas || []);
+      return (filas && filas.length === 1000) ? pagina(desde + 1000) : todas;
+    });
+  }
+  return pagina(0);
+}
+// Fecha y hora en Lima con el mismo formato que mostraba el Sheet: 06/07/2026 7:19:41
+var FORMATO_LIMA = (typeof Intl !== 'undefined') ? new Intl.DateTimeFormat('es-PE', { timeZone:'America/Lima',
+  day:'2-digit', month:'2-digit', year:'numeric', hour:'numeric', minute:'2-digit', second:'2-digit', hour12:false }) : null;
+function fhLima(v){
+  if (!v) return '';
+  var d = new Date(v); if (isNaN(d)) return '';
+  var p = {}; FORMATO_LIMA.formatToParts(d).forEach(function(x){ p[x.type] = x.value; });
+  return p.day + '/' + p.month + '/' + p.year + ' ' + String(Number(p.hour) % 24) + ':' + p.minute + ':' + p.second;
+}
+// Foto: enlace completo (historia en Drive) o ruta del almacén de Supabase.
+function urlFoto(r){ r = String(r || ''); return /^https?:/i.test(r) ? r : (SB_URL + '/storage/v1/object/public/movilidades/' + r); }
+// Una solicitud de Supabase → fila con las 29 columnas de la pestaña SOLICITUDES.
+function filaSolicitud(s){
+  return [ s.id, fhLima(s.fecha_hora_solicitud), s.area_solicitante || '', s.origen || '', s.tipo || '',
+    s.cantidad_und || '', s.peso_aprox_kg || '', s.destino || '', s.distrito || '', s.zona || '',
+    s.prioridad || '', s.comentarios || '', s.chofer_asignado || '', s.fecha_programada || '', s.estado || '',
+    s.motivo_no_entrega || '', fhLima(s.fecha_hora_entrega), fhLima(s.fecha_hora_programacion),
+    s.ubicacion_entrega || '', (s.fotos || []).map(urlFoto).join(','), s.tipo_servicio || '',
+    fhLima(s.fecha_hora_llegada), s.ubicacion_llegada || '', s.fecha_necesidad || '',
+    fhLima(s.fecha_hora_cancelacion), s.motivo_cancelacion || '', s.reprogramado ? 'SI' : '',
+    s.fuera_horario ? 'SI' : '', s.idem_key || '' ];
+}
+// Respuesta de error con la misma forma que devolvía el Apps Script: {ok:false, msg}
+function comoRespuesta(e){ return { ok:false, msg: (e && e.message) || 'Error' }; }
+// ======================================================================
 // =============================================
 
 var directorio = [];   // {nombre, distrito, zona}
@@ -362,9 +429,9 @@ document.getElementById('btnEsperarFH').addEventListener('click', function(){
 
 // --- Cargar áreas ya usadas, para el autocompletado (datalist) ---
 (function cargarAreas(){
-  var s = document.createElement('script');
-  s.src = URL_APPS_SCRIPT + '?accion=listarareas&callback=procesarAreas&_=' + Date.now();
-  document.body.appendChild(s);
+  rpc('mov_areas', {}).then(function(lista){
+    procesarAreas({ areas: (lista || []).map(function(x){ return x.area; }) });
+  }).catch(function(){ /* sin autocompletado: se puede escribir el área igual */ });
 })();
 function procesarAreas(json){
   try{
@@ -382,14 +449,14 @@ window.procesarAreas = procesarAreas;
 
 // --- Cargar directorio (Apps Script: inmune a filtros visuales del Sheet) ---
 (function cargarDirectorio(){
-  var s = document.createElement('script');
-  s.src = URL_APPS_SCRIPT + '?accion=listardirectorio&callback=procesarDirectorio&_=' + Date.now();
-  s.onerror = function(){
+  rpc('mov_puntos_formulario', {}).then(function(lista){
+    // Misma forma que la pestaña DIRECTORIO: [SERVICIO, RAZON SOCIAL, PROVEEDOR, ZONA, DISTRITO]
+    procesarDirectorio({ filas: (lista || []).map(function(p){ return [p.servicio, '', p.nombre, p.zona, p.distrito]; }) });
+  }).catch(function(){
     document.querySelectorAll('#listaPuntos .select-punto').forEach(function(sel){
-      sel.innerHTML = '<option value="">Error al cargar destinos</option>';
+      sel.innerHTML = '<option value="">Error al cargar destinos — recarga la página</option>';
     });
-  };
-  document.body.appendChild(s);
+  });
 })();
 
 function opcionesDestinoHTML(){
@@ -638,11 +705,6 @@ document.getElementById('btnEnviar').addEventListener('click', function(){
     msg.textContent = 'Falta completar: ' + errores.join(', ') + '.';
     return;
   }
-  if (URL_APPS_SCRIPT.indexOf('PEGAR_AQUI') === 0){
-    msg.className = 'mensaje error';
-    msg.textContent = 'Falta configurar la URL del Apps Script en el código.';
-    return;
-  }
 
   try{ localStorage.setItem('lives_area_solicitante', area); }catch(e){}
 
@@ -674,37 +736,20 @@ document.getElementById('btnEnviar').addEventListener('click', function(){
 // falla la conexión — antes de molestar a la persona pidiéndole que reintente a mano.
 function enviarParamsConReintento(params, intentosRestantes){
   if (intentosRestantes === undefined) intentosRestantes = 2;
-  var yaResolvio = false;
-  var qs = Object.keys(params).map(function(k){
-    return encodeURIComponent(k)+'='+encodeURIComponent(params[k]);
-  }).join('&');
-  var s = document.createElement('script');
-  s.src = URL_APPS_SCRIPT + '?' + qs;
-
   var btn = document.getElementById('btnEnviar');
-  var timeoutId = setTimeout(function(){
-    if (yaResolvio) return;
-    yaResolvio = true;
-    if (intentosRestantes > 0){
-      if (btn) btn.textContent = 'Guardando... (reintentando)';
-      enviarParamsConReintento(params, intentosRestantes - 1);
-    } else {
-      manejarErrorEnvio('Está tardando más de lo normal. Revisa tu internet — si presionas Guardar solicitud de nuevo, es seguro, no se duplicará.');
-    }
-  }, 12000);
-
-  s.onerror = function(){
-    if (yaResolvio) return;
-    yaResolvio = true;
-    clearTimeout(timeoutId);
+  var datos = {};
+  Object.keys(params).forEach(function(k){ if (k !== 'accion' && k !== 'callback') datos[k] = params[k]; });
+  rpc('mov_nueva_solicitud', { p: datos }).then(function(r){
+    window[params.callback](r);
+  }).catch(function(e){
+    if (!e.red && e.status && e.status < 500){ manejarErrorEnvio(e.message); return; }
     if (intentosRestantes > 0){
       if (btn) btn.textContent = 'Guardando... (reintentando)';
       setTimeout(function(){ enviarParamsConReintento(params, intentosRestantes - 1); }, 800);
     } else {
       manejarErrorEnvio('No se pudo conectar. Revisa tu internet — si presionas Guardar solicitud de nuevo, es seguro, no se duplicará.');
     }
-  };
-  document.body.appendChild(s);
+  });
 }
 
 function manejarErrorEnvio(texto){
@@ -864,16 +909,15 @@ document.getElementById('btnConsultar').addEventListener('click', function(){
   var desde = document.getElementById('consultaDesde').value;
   var hasta = document.getElementById('consultaHasta').value;
   var cont = document.getElementById('resultadosConsulta');
-  if(!area && !desde && !hasta){
-    cont.innerHTML='<div class="sin-res">Escribe tu área o elige al menos una fecha para buscar.</div>';
+  if(!area){
+    cont.innerHTML='<div class="sin-res">Escribe tu área para buscar sus solicitudes.</div>';
     return;
   }
   cont.innerHTML='<div class="sin-res">Consultando...</div>';
   window.__areaBuscada = area ? normalizar(area) : '';
-  var s = document.createElement('script');
-  s.src = URL_APPS_SCRIPT + '?accion=listarsolicitudes&callback=procesarConsulta&_=' + Date.now();
-  s.onerror = function(){ cont.innerHTML='<div class="sin-res">Error al consultar. Revisa tu conexión.</div>'; };
-  document.body.appendChild(s);
+  rpc('mov_consulta_area', { p_area: area, p_desde: desde || null, p_hasta: hasta || null, p_limite: 2000 })
+    .then(function(lista){ procesarConsulta({ filas: (lista || []).map(filaSolicitud) }); })
+    .catch(function(e){ cont.innerHTML='<div class="sin-res">' + e.message + '</div>'; });
 });
 
 function procesarConsulta(json){
