@@ -72,6 +72,16 @@
   .acciones{display:flex; gap:10px;}
   .btn-entregado{flex:1; padding:13px; background:var(--esmeralda); color:#fff; border:none; border-radius:9px; font-size:15px; font-weight:700; cursor:pointer;}
   .btn-noentregado{flex:1; padding:13px; background:#fff; color:var(--alerta); border:1.5px solid var(--alerta); border-radius:9px; font-size:15px; font-weight:700; cursor:pointer;}
+
+  .zona-gps{margin-top:10px;}
+  .gps-esperando{display:flex; align-items:center; gap:10px; padding:12px 14px; background:#EFF6FF; border:1px solid #BFDBFE; border-radius:9px; font-size:13.5px; color:#1E40AF; font-weight:600;}
+  .gps-esperando .spinner{width:16px; height:16px; border:2.5px solid #BFDBFE; border-top-color:#1E40AF; border-radius:50%; animation:girar .8s linear infinite; flex:none;}
+  @keyframes girar{ to{ transform:rotate(360deg); } }
+  .gps-bloqueo{padding:13px 14px; background:#FFFBEB; border:1px solid #FDE68A; border-radius:9px;}
+  .gps-bloqueo .gps-msg{font-size:13.5px; color:#92400E; font-weight:600; line-height:1.4; margin-bottom:10px;}
+  .gps-bloqueo .gps-botones{display:flex; flex-direction:column; gap:8px;}
+  .btn-gps-reintentar{padding:12px; background:var(--monetario); color:#fff; border:none; border-radius:8px; font-size:14px; font-weight:700; cursor:pointer;}
+  .btn-gps-continuar{padding:9px; background:transparent; color:#92400E; border:none; font-size:12px; text-decoration:underline; cursor:pointer;}
   .btn-foto{width:100%; margin-top:10px; padding:11px; background:#fff; color:var(--petroleo); border:1.5px dashed var(--borde); border-radius:9px; font-size:14px; font-weight:600; cursor:pointer;}
   .btn-foto.con-foto{border-style:solid; border-color:var(--esmeralda); color:var(--esmeralda); background:#ECFDF5;}
   .foto-input{display:none;}
@@ -96,6 +106,7 @@
   .toast{position:fixed; top:70px; left:50%; transform:translateX(-50%); padding:13px 20px; border-radius:10px; font-size:14px; font-weight:600; z-index:100; display:none; box-shadow:0 4px 14px rgba(0,0,0,.15); max-width:90%;}
   .toast.exito{display:block; background:#065F46; color:#fff;}
   .toast.error{display:block; background:var(--alerta); color:#fff;}
+  .toast.aviso{display:block; background:#92400E; color:#fff;}
   .gps-nota{font-size:11px; color:var(--gris); text-align:center; margin-top:6px;}
   footer{text-align:center; color:var(--gris); font-size:11px; padding:16px;}
 </style>
@@ -136,9 +147,36 @@
 
 <script>
 // =============== CONFIGURACIÓN ===============
-var SHEET_ID = '1p8zQ1h7yfufwolkuvfeOWUGMNyCh7r4v35nvXOv0rwg';
-var URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbwY21RREcAXwgrruPzEgAkd_CcEj2PRJSb3ERRFCzOPSAzb2RS2h8zJ1CHDoM0i7UTN/exec';
+// chofer_entregas_v2 · 24/09/2026 · Lee y guarda en Supabase (lives-datos), ya no en el Apps Script.
+// Funciona SIN sesión del portal (excepción acordada): el chofer elige su nombre de la lista.
+// Solo puede usar las funciones públicas de Movilidades (su ruta, llegada, entrega, base, fotos).
+var SB_URL = 'https://xxfufpddgoyhbotjmaiy.supabase.co';
+var SB_KEY = 'sb_publishable_1g-n6UT70EUlNAo8Lyc04w_jKR4LpXZ';   // clave pública
 // =============================================
+
+// ---------- Supabase: una llamada con tiempo límite y UN reintento si falla la red ----------
+function rpc(fn, args){
+  function intento(){
+    var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var reloj = setTimeout(function(){ if (ctl) ctl.abort(); }, 15000);
+    return fetch(SB_URL + '/rest/v1/rpc/' + fn, {
+      method:'POST', cache:'no-store', signal: ctl ? ctl.signal : undefined,
+      headers:{ 'apikey':SB_KEY, 'Content-Type':'application/json' },
+      body: JSON.stringify(args || {})
+    }).then(function(r){
+      clearTimeout(reloj);
+      return r.text().then(function(t){
+        var j = null; try{ j = t ? JSON.parse(t) : null; }catch(e){}
+        if (!r.ok){ var err = new Error((j && j.message) || ('Error ' + r.status)); err.status = r.status; throw err; }
+        return j;
+      });
+    }, function(e){ clearTimeout(reloj); var err = new Error('Sin conexión. Revisa la señal y vuelve a intentar.'); err.red = true; throw err; });
+  }
+  return intento().catch(function(e){
+    if (!e.red && e.status && e.status < 500) throw e;         // error de validación: no se reintenta
+    return new Promise(function(ok){ setTimeout(ok, 1500); }).then(intento);
+  });
+}
 
 var choferActual = '';
 var solicitudes = [];
@@ -148,9 +186,13 @@ function valC(c){ return c ? (c.f!=null?c.f:(c.v!=null?c.v:'')) : ''; }
 
 // ---------- Cargar choferes (Apps Script: inmune a filtros visuales del Sheet) ----------
 function cargarChoferes(){
-  var s = document.createElement('script');
-  s.src = URL_APPS_SCRIPT + '?accion=listarchoferes&callback=procesarChoferes&_=' + Date.now();
-  document.body.appendChild(s);
+  rpc('mov_choferes_app', {}).then(function(lista){
+    procesarChoferes({ filas: (lista || []).map(function(c){ return [c.nombre, '', '', 'SI']; }) });
+  }).catch(function(e){
+    document.getElementById('selChofer').innerHTML = '<option value="">No se pudo cargar la lista</option>';
+    mostrarToast(e.message, 'error');
+    setTimeout(cargarChoferes, 5000);                       // vuelve a intentar solo
+  });
 }
 function procesarChoferes(json){
   var sel = document.getElementById('selChofer');
@@ -185,9 +227,9 @@ document.getElementById('btnRefrescar').addEventListener('click', function(){
 
 // ---------- Jornada: salida/llegada de base (para el kilometraje) ----------
 function cargarEstadoJornada(){
-  var s = document.createElement('script');
-  s.src = URL_APPS_SCRIPT + '?accion=bitacorahoy&chofer=' + encodeURIComponent(choferActual) + '&callback=procesarJornada&_=' + Date.now();
-  document.body.appendChild(s);
+  rpc('mov_bitacora_hoy', { p_chofer: choferActual })
+    .then(function(r){ window.procesarJornada(r); })
+    .catch(function(e){ mostrarToast(e.message, 'error'); });
 }
 window.procesarJornada = function(r){
   if(!r || !r.ok) return;
@@ -240,17 +282,14 @@ function marcarBase(tipo, base){
   if (!confirm('¿Seguro que '+verbo+' '+TEXTO_BASE[base]+'?')) return;
   var botones = document.querySelectorAll('#jornadaCuerpo button');
   botones.forEach(function(b){ b.disabled = true; });
-  document.getElementById('jornadaCuerpo').innerHTML = '<div style="font-size:13px;color:var(--gris)">Registrando...</div>';
+  document.getElementById('jornadaCuerpo').innerHTML = '';
   window.__marcaEnCurso = { tipo:tipo, base:base };
-  obtenerUbicacion().then(function(u){
-    var accion = tipo === 'salida' ? 'marcarsalidabase' : 'marcarllegadabase';
-    var params = { accion:accion, chofer:choferActual, base:base, lat:u.lat||'', lng:u.lng||'', callback:'respMarcarBase' };
-    var qs = Object.keys(params).map(function(k){return encodeURIComponent(k)+'='+encodeURIComponent(params[k]);}).join('&');
-    var s = document.createElement('script');
-    s.src = URL_APPS_SCRIPT + '?' + qs;
-    s.onerror = function(){ mostrarToast('Error de conexión','error'); cargarEstadoJornada(); };
-    document.body.appendChild(s);
-  });
+  requerirGPS(document.getElementById('jornada'), function(u){
+    rpc('mov_marcar_base', { p_chofer: choferActual, p_evento: tipo === 'salida' ? 'SALIDA_BASE' : 'LLEGADA_BASE',
+                             p_base: base, p_lat: String(u.lat||''), p_lng: String(u.lng||'') })
+      .then(function(r){ window.respMarcarBase(r); })
+      .catch(function(e){ mostrarToast(e.message,'error'); cargarEstadoJornada(); });
+  }, base !== 'OTRO');
 }
 window.respMarcarBase = function(r){
   var marca = window.__marcaEnCurso || {};
@@ -280,12 +319,9 @@ document.getElementById('btnEntendidoJornada').addEventListener('click', functio
 function deshacerBase(tipo){
   if (!confirm('¿Deshacer el registro de '+(tipo==='salida'?'salida':'llegada')+' de hoy?')) return;
   document.getElementById('jornadaCuerpo').innerHTML = '<div style="font-size:13px;color:var(--gris)">Deshaciendo...</div>';
-  var params = { accion:'deshacereventobase', chofer:choferActual, evento: tipo==='salida'?'SALIDA_BASE':'LLEGADA_BASE', callback:'respDeshacerBase' };
-  var qs = Object.keys(params).map(function(k){return encodeURIComponent(k)+'='+encodeURIComponent(params[k]);}).join('&');
-  var s = document.createElement('script');
-  s.src = URL_APPS_SCRIPT + '?' + qs;
-  s.onerror = function(){ mostrarToast('Error de conexión','error'); cargarEstadoJornada(); };
-  document.body.appendChild(s);
+  rpc('mov_deshacer_base', { p_chofer: choferActual, p_evento: tipo==='salida'?'SALIDA_BASE':'LLEGADA_BASE' })
+    .then(function(r){ window.respDeshacerBase(r); })
+    .catch(function(e){ mostrarToast(e.message,'error'); cargarEstadoJornada(); });
 }
 window.respDeshacerBase = function(r){
   if(r && r.ok){ mostrarToast('Deshecho','exito'); }
@@ -296,10 +332,20 @@ window.respDeshacerBase = function(r){
 // ---------- Cargar ruta del chofer (Apps Script: inmune a filtros visuales del Sheet) ----------
 function cargarRuta(){
   document.getElementById('lista').innerHTML='<div class="vacio">Cargando tu ruta...</div>';
-  var s = document.createElement('script');
-  s.src = URL_APPS_SCRIPT + '?accion=listarsolicitudes&callback=procesarRuta&_=' + Date.now();
-  s.onerror = function(){ document.getElementById('lista').innerHTML='<div class="vacio">Error de conexión.</div>'; };
-  document.body.appendChild(s);
+  rpc('mov_ruta_chofer', { p_chofer: choferActual }).then(function(lista){
+    // Misma forma de fila que usaba el Apps Script (columnas de la pestaña SOLICITUDES).
+    var filas = (lista || []).map(function(s){
+      var f = []; f[0]=s.id; f[2]=s.area_solicitante; f[3]=s.origen; f[4]=s.tipo; f[5]=s.cantidad_und;
+      f[6]=s.peso_aprox_kg; f[7]=s.destino; f[8]=s.distrito; f[9]=s.zona; f[10]=s.prioridad;
+      f[11]=s.comentarios; f[12]=choferActual; f[13]=s.fecha_programada||''; f[14]=s.estado;
+      f[20]=s.tipo_servicio; f[23]=s.fecha_necesidad||'';
+      return f;
+    });
+    procesarRuta({ filas: filas });
+  }).catch(function(e){
+    document.getElementById('lista').innerHTML='<div class="vacio">No hay conexión con la base de datos.<br>'
+      + '<button class="btn-llegue" style="margin-top:12px" onclick="cargarRuta()">🔄 Reintentar</button></div>';
+  });
 }
 function normalizar(s){ return String(s||'').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim(); }
 
@@ -461,34 +507,73 @@ function renderFotos(id){
 }
 
 // ---------- Geolocalización (no bloqueante) ----------
-function obtenerUbicacion(){
+function obtenerUbicacionUnaVez(){
   return new Promise(function(resolve){
-    if(!navigator.geolocation){ resolve({lat:'',lng:''}); return; }
+    if(!navigator.geolocation){ resolve({lat:'',lng:'',error:'NOSOPORTADO'}); return; }
     var listo=false;
-    var t=setTimeout(function(){ if(!listo){ listo=true; resolve({lat:'',lng:''}); } }, 7000);
+    var t=setTimeout(function(){ if(!listo){ listo=true; resolve({lat:'',lng:'',error:'SENAL'}); } }, 7000);
     navigator.geolocation.getCurrentPosition(
-      function(pos){ if(!listo){ listo=true; clearTimeout(t); resolve({lat:pos.coords.latitude.toFixed(6), lng:pos.coords.longitude.toFixed(6)}); } },
-      function(){ if(!listo){ listo=true; clearTimeout(t); resolve({lat:'',lng:''}); } },
+      function(pos){ if(!listo){ listo=true; clearTimeout(t); resolve({lat:pos.coords.latitude.toFixed(6), lng:pos.coords.longitude.toFixed(6), error:null}); } },
+      function(err){ if(!listo){ listo=true; clearTimeout(t); resolve({lat:'',lng:'', error: (err && err.code===1) ? 'PERMISO' : 'SENAL'}); } },
       { enableHighAccuracy:true, timeout:6000, maximumAge:0 }
     );
   });
+}
+// Reintenta solas las fallas de señal (tiene sentido esperar un poco más); si es permiso
+// denegado, reintentar automaticamente no sirve de nada — el navegador no vuelve a preguntar.
+function obtenerUbicacionConReintentos(intentos){
+  intentos = intentos || 3;
+  return obtenerUbicacionUnaVez().then(function(u){
+    if (u.lat && u.lng) return u;
+    if (u.error === 'PERMISO' || intentos <= 1) return u;
+    return obtenerUbicacionConReintentos(intentos - 1);
+  });
+}
+
+// ---------- Exige GPS antes de continuar: espera, reintenta, y si no se puede,
+// explica claramente al chofer qué hacer (con una salida manual como último recurso) ----------
+function requerirGPS(card, callback, permitirContinuarSinGPS){
+  if (permitirContinuarSinGPS === undefined) permitirContinuarSinGPS = true;
+  var zona = card.querySelector('.zona-gps');
+  if (!zona){ zona = document.createElement('div'); zona.className='zona-gps'; card.appendChild(zona); }
+
+  function mostrarEsperando(){
+    zona.innerHTML = '<div class="gps-esperando"><span class="spinner"></span> Buscando tu ubicación...</div>';
+  }
+  function intentar(){
+    mostrarEsperando();
+    obtenerUbicacionConReintentos(3).then(function(u){
+      if (u.lat && u.lng){ zona.innerHTML=''; callback(u); return; }
+      var esPermiso = u.error === 'PERMISO';
+      var msg = esPermiso
+        ? 'Necesitamos tu ubicación para este sistema. Actívala: toca el candado 🔒 junto a la dirección del navegador → Permisos del sitio → Ubicación → Permitir. Luego presiona Reintentar.'
+        : 'No se pudo conseguir tu ubicación (señal débil). Si puedes, sal a un lugar más abierto y presiona Reintentar.';
+      if (!permitirContinuarSinGPS) msg += ' Este punto necesita tu ubicación — no se puede continuar sin ella.';
+      zona.innerHTML =
+          '<div class="gps-bloqueo">'
+        + '<div class="gps-msg">📍 '+msg+'</div>'
+        + '<div class="gps-botones">'
+        + '<button type="button" class="btn-gps-reintentar">🔄 Reintentar</button>'
+        + (permitirContinuarSinGPS ? '<button type="button" class="btn-gps-continuar">Continuar sin ubicación (no sumará al kilometraje)</button>' : '')
+        + '</div></div>';
+      zona.querySelector('.btn-gps-reintentar').addEventListener('click', intentar);
+      var btnContinuar = zona.querySelector('.btn-gps-continuar');
+      if (btnContinuar) btnContinuar.addEventListener('click', function(){ zona.innerHTML=''; callback({lat:'',lng:''}); });
+    });
+  }
+  intentar();
 }
 
 // ---------- Marcar llegada al punto ----------
 function marcarLlegue(id){
   var card = document.getElementById('card-'+id);
   var btn = card.querySelector('.btn-llegue');
-  btn.disabled = true; btn.textContent = 'Registrando llegada...';
-  obtenerUbicacion().then(function(u){
-    var params = {
-      accion:'llegue', id:id, lat:u.lat||'', lng:u.lng||'', chofer:choferActual, callback:'respLlegue'
-    };
-    var qs = Object.keys(params).map(function(k){return encodeURIComponent(k)+'='+encodeURIComponent(params[k]);}).join('&');
-    var s = document.createElement('script');
-    s.src = URL_APPS_SCRIPT + '?' + qs;
+  btn.disabled = true; btn.textContent = 'Esperando ubicación...';
+  requerirGPS(card, function(u){
     window.__idEnCurso = id;
-    s.onerror = function(){ mostrarToast('Error de conexión','error'); btn.disabled=false; btn.textContent='📍 Llegué al punto'; };
-    document.body.appendChild(s);
+    rpc('mov_llegue', { p_id:id, p_chofer:choferActual, p_lat:String(u.lat||''), p_lng:String(u.lng||'') })
+      .then(function(r){ window.respLlegue(r); })
+      .catch(function(e){ mostrarToast(e.message,'error'); btn.disabled=false; btn.textContent='📍 Llegué al punto'; });
   });
 }
 window.respLlegue = function(r){
@@ -510,8 +595,8 @@ function marcarEntregado(id){
   var card = document.getElementById('card-'+id);
   var btns = card.querySelectorAll('button');
   btns.forEach(function(b){ b.disabled=true; });
-  card.querySelector('.btn-entregado').textContent='Registrando...';
-  obtenerUbicacion().then(function(u){
+  card.querySelector('.btn-entregado').textContent='Esperando ubicación...';
+  requerirGPS(card, function(u){
     enviarEstado(id, 'ENTREGADO', '', u);
   });
 }
@@ -523,22 +608,17 @@ function marcarNoEntregado(id){
   if(!motivo){ mostrarToast('Escribe el motivo','error'); return; }
   var card = document.getElementById('card-'+id);
   card.querySelectorAll('button').forEach(function(b){ b.disabled=true; });
-  obtenerUbicacion().then(function(u){
+  requerirGPS(card, function(u){
     enviarEstado(id, 'NO ENTREGADO', motivo, u);
   });
 }
 
 function enviarEstado(id, estado, motivo, u){
-  var params = {
-    accion:'entregar', id:id, estado:estado, motivo:motivo||'',
-    lat:u.lat||'', lng:u.lng||'', chofer:choferActual, callback:'respEstado'
-  };
-  var qs = Object.keys(params).map(function(k){return encodeURIComponent(k)+'='+encodeURIComponent(params[k]);}).join('&');
-  var s = document.createElement('script');
-  s.src = URL_APPS_SCRIPT + '?' + qs;
   window.__idEnCurso = id;
-  s.onerror = function(){ mostrarToast('Error de conexión','error'); reactivar(id); };
-  document.body.appendChild(s);
+  rpc('mov_entregar', { p_id:id, p_chofer:choferActual, p_estado:estado, p_motivo:motivo||'',
+                        p_lat:String(u.lat||''), p_lng:String(u.lng||'') })
+    .then(function(r){ window.respEstado(r); })
+    .catch(function(e){ mostrarToast(e.message,'error'); reactivar(id); });
 }
 
 window.respEstado = function(r){
@@ -565,20 +645,49 @@ function reactivar(id){
   var be=card.querySelector('.btn-entregado'); if(be) be.textContent='✓ Entregado';
 }
 
-// Fotos vía POST no-cors (fire-and-forget: registra en Drive sin bloquear el flujo)
+// Fotos: se suben al almacén "movilidades" de Supabase y luego se anotan en la solicitud.
+// No bloquean al chofer: la entrega ya quedó registrada. Si alguna no sube, se reintenta una
+// vez y, si igual falla, se avisa (antes se perdían en silencio).
+function nombreAlAzar(){
+  var b = new Uint8Array(12);
+  (window.crypto || window.msCrypto).getRandomValues(b);
+  return Date.now().toString(36) + '_' + Array.prototype.map.call(b, function(x){ return ('0'+x.toString(16)).slice(-2); }).join('');
+}
+function dataUrlABlob(dataUrl){
+  var partes = dataUrl.split(','), bin = atob(partes[1]), arr = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type:'image/jpeg' });
+}
+function subirUnaFoto(id, dataUrl){
+  var ruta = 'fotos/' + id + '/' + nombreAlAzar() + '.jpg';
+  function intento(){
+    return fetch(SB_URL + '/storage/v1/object/movilidades/' + ruta, {
+      method:'POST', headers:{ 'apikey':SB_KEY, 'Content-Type':'image/jpeg', 'x-upsert':'false' },
+      body: dataUrlABlob(dataUrl)
+    }).then(function(r){ if (!r.ok) throw new Error('foto ' + r.status); return ruta; });
+  }
+  return intento().catch(function(){ return new Promise(function(ok){ setTimeout(ok, 2000); }).then(intento); });
+}
 function enviarFotos(id, listaDataUrls){
-  try{
-    fetch(URL_APPS_SCRIPT, {
-      method:'POST', mode:'no-cors',
-      headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body: JSON.stringify({accion:'foto', id:id, fotos:listaDataUrls})
+  var lista = listaDataUrls.slice();
+  delete fotos[id];
+  Promise.all(lista.map(function(d){ return subirUnaFoto(id, d).catch(function(){ return null; }); }))
+    .then(function(rutas){
+      var ok = rutas.filter(Boolean);
+      var fallidas = rutas.length - ok.length;
+      var fin = function(){
+        if (fallidas) mostrarToast(fallidas + ' foto(s) de ' + id + ' no se pudieron subir (sin señal). La entrega sí quedó registrada.', 'aviso');
+      };
+      if (!ok.length) { fin(); return; }
+      return rpc('mov_registrar_fotos', { p_id:id, p_rutas:ok, p_chofer:choferActual }).then(fin, function(){
+        mostrarToast('Las fotos de ' + id + ' subieron, pero no se pudieron anotar. Avisa a Logística.', 'aviso');
+      });
     });
-  }catch(e){}
 }
 
 function mostrarToast(msg, tipo){
   var t=document.getElementById('toast'); t.textContent=msg; t.className='toast '+tipo;
-  setTimeout(function(){ t.className='toast'; }, 4000);
+  setTimeout(function(){ t.className='toast'; }, tipo==='aviso' ? 6000 : 4000);
 }
 
 // Init
