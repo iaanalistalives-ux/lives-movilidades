@@ -543,7 +543,7 @@ details.help p{color:var(--stone);margin:8px 0 0;}
     <div class="aviso" id="cAviso"></div>
     <div class="campo" id="c_cNombre"><label>Nombre <span class="req">*</span></label>
       <input id="cNombre" maxlength="80" autocomplete="off"><div class="msg" id="m_cNombre"></div>
-      <div class="ayuda">Es el nombre que el chofer elige en su app y el que ve Sara al programar.</div></div>
+      <div class="ayuda" id="cAyudaNombre">Es el nombre que el chofer elige en su app y el que ve Sara al programar.</div></div>
     <div class="dos">
       <div class="campo"><label>Celular</label><input id="cCelular" maxlength="40" inputmode="tel" autocomplete="off"></div>
       <div class="campo"><label>Vehículo / placa</label><input id="cVehiculo" maxlength="60" autocomplete="off"></div>
@@ -844,6 +844,13 @@ function abrirChofer(id){
   var c = editChofer || {};
   $('cTitulo').textContent = editChofer ? 'Editar chofer' : 'Agregar chofer';
   $('cNombre').value = c.nombre || ''; $('cCelular').value = c.celular || ''; $('cVehiculo').value = c.vehiculo || '';
+  /* 05/10: el nombre no se cambia al editar (las solicitudes guardan el nombre).
+     Para cambiar de chofer: desactivar este y agregar uno nuevo. */
+  $('cNombre').readOnly = !!editChofer;
+  $('cNombre').style.background = editChofer ? 'var(--bg, #F1F6F4)' : '';
+  $('cAyudaNombre').textContent = editChofer
+    ? 'El nombre no se puede cambiar: sus solicitudes y entregas quedan registradas con él. Si cambió el chofer, desactiva este y agrega uno nuevo.'
+    : 'Es el nombre que el chofer elige en su app y el que ve Sara al programar.';
   marcar('cNombre', ''); aviso('cAviso', '', '');
   $('cEstado').style.display = editChofer ? '' : 'none';
   $('cEstado').textContent = c.activo === false ? 'Activar' : 'Desactivar';
@@ -852,7 +859,7 @@ function abrirChofer(id){
     ' · Último cambio: ' + esc(c.actualizado_por || '—') + ' el ' + fechaHora(c.actualizado) +
     (c.historico ? '<br>Viene del Sheet anterior: tiene entregas registradas, por eso no se puede borrar, solo desactivar.' : '') : '';
   $('veloChofer').classList.add('ver'); document.body.style.overflow = 'hidden';
-  setTimeout(function(){ $('cNombre').focus(); }, 50);
+  setTimeout(function(){ $(editChofer ? 'cCelular' : 'cNombre').focus(); }, 50);
 }
 function guardarChofer(){
   var nombre = $('cNombre').value.replace(/\s+/g,' ').trim();
@@ -863,6 +870,9 @@ function guardarChofer(){
     return;
   }
   marcar('cNombre', ''); aviso('cAviso', '', '');
+  if (editChofer && norm(nombre) !== norm(editChofer.nombre)){
+    marcar('cNombre', 'El nombre no se puede cambiar. Desactiva este chofer y agrega uno nuevo.'); return;
+  }
   var datos = { nombre: nombre, celular: $('cCelular').value, vehiculo: $('cVehiculo').value };
   if (editChofer){ datos.id = editChofer.id; datos.version = editChofer.version; }
   ocupado(['cGuardar','cEstado','cBorrar'], true); $('cGuardar').textContent = 'Guardando…';
