@@ -610,6 +610,7 @@
     .cwrap{height:170px!important;}
   }
 </style>
+<style id="lsLimp2Css">/* lives-limpieza v2 · sin notas, veredictos ni paneles de título arriba */#insightBar{display:none!important}</style>
 </head>
 <body>
 <header>
@@ -659,14 +660,14 @@
 <div class="nota-estatica" id="notaEstatica"></div>
 
 <div class="contenido" id="contenido">
-  <div class="cargando" id="cargandoMsg">Cargando datos del Sheet...</div>
+  <div class="cargando" id="cargandoMsg">Cargando datos...</div>
   <div id="cuerpoDashboard" style="display:none">
 
     <div class="grid-kpi" id="gridKpi"></div>
 
     <div class="insight" id="insightBar"></div>
 
-    <div class="nota">Los tiempos de espera se calculan entre la hora de llegada del chofer al punto y la hora de cierre (entregado/no entregado). Solicitudes sin ambos timestamps no entran en ese promedio. Los datos reflejan lo registrado en el Sheet al momento de la consulta.</div>
+    <div class="nota">Los tiempos de espera se calculan entre la hora de llegada del chofer al punto y la hora de cierre (entregado/no entregado). Solicitudes sin ambos timestamps no entran en ese promedio. Los datos reflejan lo registrado al momento de la consulta.</div>
 
     <div class="tabs">
       <button class="active" onclick="tabDash(0,this)">Tendencia</button>
@@ -1002,7 +1003,7 @@ function iniciar(){
     choferesLista = Array.from(new Set(registros.map(function(r){return r.chofer;}).filter(Boolean))).sort();
     document.getElementById('notaEstatica').className = 'nota-estatica visible';
     document.getElementById('notaEstatica').textContent =
-      '📌 Copia estática exportada el ' + (FECHA_EXPORTACION||'') + '. Los filtros, gráficos y el detalle por clic siguen siendo interactivos, pero los datos no se actualizan: no está conectada al Sheet en vivo.';
+      '📌 Copia estática exportada el ' + (FECHA_EXPORTACION||'') + '. Los filtros, gráficos y el detalle por clic siguen siendo interactivos, pero los datos no se actualizan: no está conectada en vivo.';
     document.getElementById('btnActualizar').style.display = 'none';
     document.getElementById('btnExportarEstatico').style.display = 'none';
     prepararFiltros();
@@ -3489,5 +3490,6 @@ button.lsBtn:disabled{opacity:.5;cursor:not-allowed}
   window.__lsBa={arreglar:arreglar,MOV:MOV,F:function(){return F;},bf:barraFiltros};
 }catch(e){}})();</script>
 <!-- ===== fin lives-franja v6.1 ===== -->
+<script id="lsLimp2Js">(function(){try{if(window.top!==window.self)document.documentElement.classList.add("lsEnPortal");}catch(e){document.documentElement.classList.add("lsEnPortal");}var re=/^\s*¿\s*(C[oó]mo|Qu[eé] (hace|pasa))/i,p=0;function f(){p=0;var d=document.querySelectorAll("details");for(var i=0;i<d.length;i++){var s=d[i].querySelector("summary");if(s&&re.test(s.textContent))d[i].style.display="none";}}f();document.addEventListener("DOMContentLoaded",f);try{new MutationObserver(function(){if(!p){p=1;setTimeout(f,60);}}).observe(document.documentElement,{childList:true,subtree:true});}catch(e){}})();</script>
 </body>
 </html>
