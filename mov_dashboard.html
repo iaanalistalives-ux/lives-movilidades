@@ -2195,7 +2195,7 @@ document.getElementById('btnExportarEstatico').addEventListener('click', functio
   a.download = 'dashboard_movilidades_copia_' + hoy.getFullYear()+('0'+(hoy.getMonth()+1)).slice(-2)+('0'+hoy.getDate()).slice(-2) + '.html';
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  mostrarToast('Copia estática descargada. Ábrela con doble clic, funciona sin internet ni conexión al Sheet.','exito');
+  mostrarToast('Copia estática descargada. Ábrela con doble clic, funciona sin internet.','exito');
 });
 
 // Init

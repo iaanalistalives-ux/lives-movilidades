@@ -912,7 +912,7 @@ function abrirPunto(id){
   $('pBorrar').style.display = editPunto && !p.historico ? '' : 'none';
   $('pMeta').innerHTML = editPunto ? 'Creado por ' + esc(p.creado_por || '—') + ' el ' + fechaHora(p.creado) +
     ' · Último cambio: ' + esc(p.actualizado_por || '—') + ' el ' + fechaHora(p.actualizado) +
-    (p.historico ? '<br>Viene del Sheet anterior: tiene historial, por eso no se puede borrar, solo desactivar.' : '') : '';
+    (p.historico ? '<br>Viene del sistema anterior: tiene historial, por eso no se puede borrar, solo desactivar.' : '') : '';
   $('veloPunto').classList.add('ver'); document.body.style.overflow = 'hidden';
   setTimeout(function(){ $('pNombre').focus(); }, 50);
 }
@@ -984,7 +984,7 @@ function abrirChofer(id){
   $('cBorrar').style.display = editChofer && !c.historico ? '' : 'none';
   $('cMeta').innerHTML = editChofer ? 'Creado por ' + esc(c.creado_por || '—') + ' el ' + fechaHora(c.creado) +
     ' · Último cambio: ' + esc(c.actualizado_por || '—') + ' el ' + fechaHora(c.actualizado) +
-    (c.historico ? '<br>Viene del Sheet anterior: tiene entregas registradas, por eso no se puede borrar, solo desactivar.' : '') : '';
+    (c.historico ? '<br>Viene del sistema anterior: tiene entregas registradas, por eso no se puede borrar, solo desactivar.' : '') : '';
   $('veloChofer').classList.add('ver'); document.body.style.overflow = 'hidden';
   setTimeout(function(){ $(editChofer ? 'cCelular' : 'cNombre').focus(); }, 50);
 }
