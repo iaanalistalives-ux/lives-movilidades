@@ -645,6 +645,30 @@ html.lsPoOn body>*:not(#lsPo){visibility:hidden!important}
   .nota-periodo-km{font-size:11px; color:var(--gris); font-style:italic; margin-left:4px;}
   .total-km-periodo{background:var(--bg-soft); box-shadow:var(--sh); border-radius:var(--r); padding:10px 14px; margin-bottom:12px; font-size:13px; color:var(--petroleo);}
   .total-km-periodo b{font-size:18px;}
+  /* 24/11/2026: kilometraje en tarjetas, una por chofer (antes una lista larga con el mismo nombre en cada fila) */
+  .km-tarjetas{display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:12px; margin-bottom:6px;}
+  .km-tarjeta{position:relative; text-align:left; font-family:inherit; background:#fff; border:1.5px solid var(--warm); border-radius:12px; padding:14px 14px 12px 18px; cursor:pointer; overflow:hidden; display:block; width:100%;}
+  .km-tarjeta::before{content:""; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--sage);}
+  .km-tarjeta:hover{border-color:var(--sage);}
+  .km-tarjeta.sel{border-color:var(--sage); box-shadow:0 0 0 2px rgba(15,122,90,.18);}
+  .km-tarjeta .nom{font-size:12.5px; font-weight:700; color:var(--petroleo); text-transform:uppercase; letter-spacing:.3px;}
+  .km-tarjeta .km{font-size:26px; font-weight:700; color:var(--sage); margin:4px 0 6px; line-height:1.1;}
+  .km-tarjeta .km small{font-size:13px; font-weight:600; color:var(--stone);}
+  .km-tarjeta .dat{display:flex; gap:14px; flex-wrap:wrap; font-size:12px; color:var(--stone); margin-top:8px;}
+  .km-tarjeta .dat b{color:var(--petroleo); font-size:13.5px;}
+  .km-tarjeta .est{display:flex; gap:5px; flex-wrap:wrap; margin-top:9px;}
+  .km-tarjeta .pie{display:flex; justify-content:space-between; gap:8px; font-size:11px; color:var(--gris); margin-top:9px;}
+  .km-tarjeta .pie b{color:var(--sage-dark);}
+  .km-detalle{margin-top:14px; border-top:1px solid var(--warm); padding-top:12px;}
+  .km-detalle-cab{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:8px;}
+  .km-detalle-cab .t{font-size:14px; font-weight:700; color:var(--petroleo);}
+  html[data-tema="oscuro"] .km-tarjeta{background:#112A25; border-color:#28463F;}
+  html[data-tema="oscuro"] .km-tarjeta .nom, html[data-tema="oscuro"] .km-tarjeta .dat b, html[data-tema="oscuro"] .km-detalle-cab .t{color:#E3ECE9;}
+  html[data-tema="oscuro"] .km-tarjeta .km{color:#34C08F;}
+  html[data-tema="oscuro"] .km-tarjeta .km small, html[data-tema="oscuro"] .km-tarjeta .dat, html[data-tema="oscuro"] .km-tarjeta .pie{color:#A9BDB7;}
+  html[data-tema="oscuro"] .km-tarjeta .pie b{color:#34C08F;}
+  html[data-tema="oscuro"] .km-detalle{border-top-color:#28463F;}
+  @media print{ .km-tarjeta .pie b, #btnCerrarKmDetalle{display:none !important;} }
   .chip.activo{background:var(--petroleo); color:#fff; border-color:var(--petroleo);}
   .btn-accion{padding:8px 14px; border-radius:7px; font-size:13px; font-weight:600; cursor:pointer; border:1.5px solid var(--sage); background:#fff; color:var(--sage-dark);}
   .btn-accion.solido{background:var(--sage); color:#fff;}
@@ -967,7 +991,7 @@ html.lsPoOn body>*:not(#lsPo){visibility:hidden!important}
       <div class="grid">
         <div class="panel col12">
           <div class="pt">Kilometraje por chofer</div>
-          <div class="ph">Calculado automáticamente cada madrugada con las marcas de GPS</div>
+          <div class="ph">Una tarjeta por chofer, de mayor a menor kilometraje · calculado cada madrugada con las marcas de GPS · clic en una tarjeta para ver sus días</div>
           <div class="fila-periodo-km">
             <span class="chip-periodo-km activo" data-periodo="todo">Todo</span>
             <span class="chip-periodo-km" data-periodo="mesActual">Este mes</span>
@@ -978,9 +1002,16 @@ html.lsPoOn body>*:not(#lsPo){visibility:hidden!important}
             <span class="nota-periodo-km">También respeta los filtros de Zona/Chofer/Desde/Hasta de arriba.</span>
           </div>
           <div class="total-km-periodo" id="totalKmPeriodo"></div>
-          <table class="rank" id="tablaKm"><thead>
-            <tr><th>Fecha</th><th>Chofer</th><th>Km</th><th>Paradas</th><th>Salida</th><th>Llegada</th><th>Estado</th></tr>
-          </thead><tbody></tbody></table>
+          <div class="km-tarjetas" id="kmTarjetas"></div>
+          <div class="km-detalle" id="kmDetalle" style="display:none">
+            <div class="km-detalle-cab">
+              <span class="t" id="kmDetalleTitulo"></span>
+              <button type="button" class="btn-accion" id="btnCerrarKmDetalle" onclick="elegirChoferKm('')">✕ Cerrar detalle</button>
+            </div>
+            <table class="rank" id="tablaKm"><thead>
+              <tr><th>Fecha</th><th>Km</th><th>Paradas</th><th>Salida</th><th>Llegada</th><th>Estado</th></tr>
+            </thead><tbody></tbody></table>
+          </div>
         </div>
         <div class="panel col12">
           <div class="pt">Veces sin ubicación por chofer</div>
@@ -1258,7 +1289,7 @@ function cargarSolicitudes(){
   });
 }
 
-// ---------- Kilometraje por chofer (lo calcula el robot diario en Code.gs) ----------
+// ---------- Kilometraje por chofer (lo calcula cada madrugada la tarea programada de la base) ----------
 var registrosKm = [];
 function cargarKm(){
   leerTodo('mov_km_diario', 'fecha.desc').then(function(lista){
@@ -1465,28 +1496,71 @@ function renderTablaKm(){
   var totalDiv = document.getElementById('totalKmPeriodo');
   if (totalDiv){
     totalDiv.innerHTML = registrosKm.length
-      ? ('Total del periodo: <b>'+totalKmNum.toFixed(1)+' km</b> · '+lista.length+' registro(s)')
+      ? ('Total del periodo: <b>'+totalKmNum.toFixed(1)+' km</b> · '+new Set(lista.map(function(r){ return r.chofer; })).size+' chofer(es) · '+lista.length+' día(s) registrados')
       : '';
   }
 
+  var cajaT = document.getElementById('kmTarjetas'), cajaD = document.getElementById('kmDetalle');
   if (!lista.length){
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--gris)">'
-      + (registrosKm.length ? 'Sin datos con estos filtros' : 'Aún no hay kilometraje calculado. Corre una vez el robot diario en Code.gs, o espera a que corra solo mañana de madrugada.')
-      + '</td></tr>';
+    cajaT.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--gris);padding:18px 0">'
+      + (registrosKm.length ? 'Sin datos con estos filtros' : 'Aún no hay kilometraje calculado. Se calcula solo cada madrugada.')
+      + '</div>';
+    cajaD.style.display = 'none';
+    window.__listaKmVisible = [];
     return;
   }
-  // En el Sheet se guarda "SEDE · hora" (útil para revisar internamente). En el dashboard,
+  // En la base se guarda "SEDE · hora" (útil para revisar internamente). En el dashboard,
   // que ve gerencia, solo mostramos la sede — la hora exacta de cuándo se tocó el botón puede
   // confundir, ya que no siempre coincide con la hora real de inicio/fin de la jornada.
   function soloSede(texto){ return texto ? texto.split(' · ')[0] : ''; }
+  function claseDe(r){ return (r.estado.split(' ')[0] || '').replace(/[^A-Z_]/g,''); }
+  function fechaCorta(f){ var q = String(f).split('-'); return q.length === 3 ? q[2]+'/'+q[1]+'/'+q[0] : f; }
 
-  tbody.innerHTML = lista.map(function(r, idx){
-    var claseEstado = (r.estado.split(' ')[0] || '').replace(/[^A-Z_]/g,'');
+  // ---- Una tarjeta por chofer (24/11/2026) ----
+  var porChofer = {}, ordenCh = [];
+  lista.forEach(function(r){
+    var c = porChofer[r.chofer];
+    if (!c){ c = porChofer[r.chofer] = {chofer:r.chofer, km:0, dias:0, diasKm:0, paradas:0, estados:{}, ultima:''}; ordenCh.push(c); }
+    var n = parseFloat(r.km), pr = parseInt(r.paradas, 10);
+    c.dias++;
+    if (!isNaN(n)){ c.km += n; c.diasKm++; }
+    if (!isNaN(pr)) c.paradas += pr;
+    var e = claseDe(r) || 'OTRO'; c.estados[e] = (c.estados[e]||0) + 1;
+    if (r.fecha > c.ultima) c.ultima = r.fecha;
+  });
+  ordenCh.sort(function(a,b){ return (b.km - a.km) || (b.dias - a.dias) || a.chofer.localeCompare(b.chofer); });
+  var maxKm = Math.max.apply(null, ordenCh.map(function(c){ return c.km; })) || 1;
+  if (kmChoferSel && !porChofer[kmChoferSel]) kmChoferSel = '';
+  var ORDEN_EST = ['OK','PARCIAL','SIN_SALIDA','SIN_PUNTOS'];
+  var NOMBRE_EST = {OK:'completo', PARCIAL:'parcial', SIN_SALIDA:'sin salida', SIN_PUNTOS:'sin puntos'};
+  cajaT.innerHTML = ordenCh.map(function(c){
+    var ests = Object.keys(c.estados).sort(function(a,b){ var x = ORDEN_EST.indexOf(a), y = ORDEN_EST.indexOf(b); return (x<0?9:x) - (y<0?9:y); });
+    return '<button type="button" class="km-tarjeta'+(c.chofer === kmChoferSel ? ' sel' : '')+'" data-chofer="'+esc(c.chofer)+'">'
+      + '<div class="nom">'+esc(c.chofer)+'</div>'
+      + '<div class="km">'+(c.diasKm ? c.km.toFixed(1)+' <small>km</small>' : '— <small>sin km calculado</small>')+'</div>'
+      + '<div class="barra-mini-cont"><div class="barra-mini" style="width:'+(c.km/maxKm*100).toFixed(1)+'%"></div></div>'
+      + '<div class="dat"><span><b>'+fmtInt(c.dias)+'</b> día(s)</span><span><b>'+fmtInt(c.paradas)+'</b> parada(s)</span>'
+      +   (c.diasKm ? '<span title="Kilómetros ÷ días con kilometraje calculado ('+c.diasKm+')"><b>'+(c.km/c.diasKm).toFixed(1)+'</b> km por día</span>' : '')+'</div>'
+      + '<div class="est">'+ests.map(function(e){ return '<span class="pill '+e+'">'+c.estados[e]+' '+(NOMBRE_EST[e] || e.toLowerCase())+'</span>'; }).join('')+'</div>'
+      + '<div class="pie"><span>Último registro: '+esc(fechaCorta(c.ultima))+'</span><b>Ver días ›</b></div>'
+      + '</button>';
+  }).join('');
+  Array.prototype.forEach.call(cajaT.querySelectorAll('.km-tarjeta'), function(b){
+    b.addEventListener('click', function(){ var ch = this.getAttribute('data-chofer'); elegirChoferKm(ch === kmChoferSel ? '' : ch); });
+  });
+
+  // ---- Detalle por día del chofer elegido ----
+  if (!kmChoferSel){ cajaD.style.display = 'none'; window.__listaKmVisible = []; return; }
+  var dias = lista.filter(function(r){ return r.chofer === kmChoferSel; });
+  var cs = porChofer[kmChoferSel];
+  document.getElementById('kmDetalleTitulo').textContent = kmChoferSel + ' · ' + (cs.diasKm ? cs.km.toFixed(1)+' km' : 'sin km calculado') + ' en ' + cs.dias + ' día(s)';
+  cajaD.style.display = '';
+  tbody.innerHTML = dias.map(function(r, idx){
+    var claseEstado = claseDe(r);
     var textoCorto = r.estado.split(' (')[0]; // "PARCIAL" en vez de "PARCIAL (sin marca de...)"
     var tieneDetalle = r.estado.indexOf('(') > -1 || !!r.detalle;
     return '<tr>'
-      + '<td>'+esc(r.fecha)+'</td>'
-      + '<td>'+esc(r.chofer)+'</td>'
+      + '<td>'+esc(fechaCorta(r.fecha))+'</td>'
       + '<td><strong>'+(r.km ? esc(r.km)+' km' : '—')+'</strong></td>'
       + '<td>'+esc(r.paradas)+'</td>'
       + '<td title="'+esc(r.salida)+'">'+esc(soloSede(r.salida)||'—')+'</td>'
@@ -1497,7 +1571,17 @@ function renderTablaKm(){
         + '</td>'
       + '</tr>';
   }).join('');
-  window.__listaKmVisible = lista; // para que abrirEstadoKm pueda leer el detalle completo por indice
+  window.__listaKmVisible = dias; // para que abrirEstadoKm pueda leer el detalle completo por indice
+}
+
+var kmChoferSel = '';   // chofer con el detalle por día abierto ('' = ninguno)
+function elegirChoferKm(ch){
+  kmChoferSel = ch || '';
+  renderTablaKm();
+  if (kmChoferSel){
+    var d = document.getElementById('kmDetalle');
+    try{ var q = d.getBoundingClientRect(); if (q.top > window.innerHeight - 160 || q.top < 0) d.scrollIntoView({behavior:'smooth', block:'start'}); }catch(e){}
+  }
 }
 
 function abrirEstadoKm(idx){
