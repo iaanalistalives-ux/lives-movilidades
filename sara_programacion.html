@@ -696,6 +696,30 @@ html.lsPoOn body>*:not(#lsPo){visibility:hidden!important}
   .btn-fila-accion.revertir{color:var(--alerta); border-color:#FCA5A5;}
   .btn-fila-accion.cancelar{color:#374151; border-color:#9CA3AF; background:#F3F4F6;}
   .btn-excel{padding:8px 14px; background:#fff; color:#065F46; border:1.5px solid var(--esmeralda); border-radius:7px; font-size:13px; font-weight:600; cursor:pointer;}
+  /* 24/11/2026: botones Catálogo y Dashboard (abren su pantalla en una ventana dentro de esta página) */
+  .btn-vent{padding:8px 14px; background:#fff; color:var(--petroleo); border:1.5px solid var(--petroleo); border-radius:7px; font-size:13px; font-weight:600; cursor:pointer;}
+  .btn-vent:hover{background:var(--petroleo); color:#fff;}
+  .vent-fondo{position:fixed; inset:0; background:rgba(14,59,54,.55); display:none; align-items:center; justify-content:center; z-index:300;}
+  .vent-fondo.visible{display:flex;}
+  .vent-caja{background:#fff; border-radius:12px; width:96vw; height:94vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 10px 40px rgba(0,0,0,.3);}
+  .vent-cab{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 14px; background:var(--petroleo); color:#fff; flex:none;}
+  .vent-cab b{font-size:14px; font-weight:600;}
+  .vent-cerrar{padding:7px 14px; background:#fff; color:var(--petroleo); border:none; border-radius:7px; font-size:13px; font-weight:700; cursor:pointer;}
+  .vent-caja iframe{flex:1; width:100%; border:0; background:var(--fondo);}
+  @media (max-width:700px){ .vent-caja{width:100vw; height:100vh; height:100dvh; border-radius:0;} }
+  @media print{ .vent-fondo{display:none !important;} }
+  html[data-tema="oscuro"] .btn-vent{background:#112A25; color:#E3ECE9; border-color:#34C08F;}
+  html[data-tema="oscuro"] .btn-vent:hover{background:#0F7A5A; color:#fff;}
+  html[data-tema="oscuro"] .vent-caja{background:#0A1C19;}
+  html[data-tema="oscuro"] .vent-caja iframe{background:#0A1C19;}
+  /* 24/11/2026: quien no tiene permiso de programar ve la bandeja solo para consultar (sin casillas, sin Acciones, sin barra de programar) */
+  body.solo-ver thead th:nth-child(1), body.solo-ver tbody td:nth-child(1):not([colspan]),
+  body.solo-ver thead th:nth-child(3), body.solo-ver tbody td:nth-child(3){display:none;}
+  body.solo-ver .accion-bar{display:none !important;}
+  body.solo-ver{padding-bottom:20px;}
+  /* el Catálogo es solo para quien programa: el botón aparece recién cuando la base responde que sí puede */
+  #btnCatalogo{display:none;}
+  body.puede-prog #btnCatalogo{display:inline-block;}
   .btn-coment{padding:4px 10px; background:#EFF6FF; color:#1E40AF; border:1px solid #BFDBFE; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap;}
   .btn-coment:hover{background:#DBEAFE;}
   .btn-coment.urgente{background:#FFFBEB; color:#92400E; border-color:#FDE68A;}
@@ -793,6 +817,8 @@ html.lsPoOn body>*:not(#lsPo){visibility:hidden!important}
     <input type="text" id="buscar" placeholder="Destino, área, ID...">
   </div>
   <button class="btn-excel" id="btnExcel">📊 Exportar Excel</button>
+  <button type="button" class="btn-vent" id="btnCatalogo" data-vent="catalogos.html" data-titulo="Catálogo de movilidades">📒 Catálogo</button>
+  <button type="button" class="btn-vent" id="btnDashboard" data-vent="mov_dashboard.html" data-titulo="Dashboard de movilidades">📈 Dashboard</button>
   <button class="btn-refresh" id="btnRefresh">Actualizar</button>
 </div>
 
@@ -873,6 +899,13 @@ html.lsPoOn body>*:not(#lsPo){visibility:hidden!important}
     <div class="modal-acciones">
       <button class="modal-cancelar" id="fotosCerrar" style="flex:none; margin-left:auto; padding:9px 18px;">Cerrar</button>
     </div>
+  </div>
+</div>
+
+<div class="vent-fondo" id="ventFondo" role="dialog" aria-modal="true" aria-labelledby="ventTitulo">
+  <div class="vent-caja">
+    <div class="vent-cab"><b id="ventTitulo"></b><button type="button" class="vent-cerrar" id="ventCerrar">✕ Cerrar</button></div>
+    <iframe id="ventMarco" title="Pantalla de movilidades" src="about:blank"></iframe>
   </div>
 </div>
 
@@ -989,6 +1022,7 @@ function procesarChoferes(json){
     });
   }catch(e){}
   var sel = document.getElementById('selChofer');
+  var antSel = sel.value, antFil = document.getElementById('filtroChofer').value;   // 24/11/2026: al recargar la lista se conserva lo elegido
   sel.innerHTML = '<option value="">— Elegir chofer —</option>';
   choferes.forEach(function(ch){
     var op = document.createElement('option'); op.value=ch; op.textContent=ch; sel.appendChild(op);
@@ -998,6 +1032,9 @@ function procesarChoferes(json){
   choferes.forEach(function(ch){
     var op = document.createElement('option'); op.value=ch; op.textContent=ch; selF.appendChild(op);
   });
+  if (antSel && choferes.indexOf(antSel) !== -1) sel.value = antSel;
+  if (antFil && choferes.indexOf(antFil) !== -1) selF.value = antFil;
+  else if (antFil){ filtro.chofer = ''; render(); }
 }
 window.procesarChoferes = procesarChoferes;
 
@@ -1411,6 +1448,45 @@ document.getElementById('btnExcel').addEventListener('click', function(){
   mostrarToast('Excel exportado: '+filas.length+' fila(s)', 'exito');
 });
 
+// ---------- Catálogo y Dashboard en una ventana dentro de esta página (24/11/2026) ----------
+(function(){
+  var fondo = document.getElementById('ventFondo'), marco = document.getElementById('ventMarco'), cual = '';
+  function nombreUsuario(){
+    try{ var a = window.LIVES_SESION && window.LIVES_SESION.actual(); if (a && a.nombre) return a.nombre; }catch(e){}
+    try{ var u = new URL(location.href); return (u.searchParams.get('usuario') || u.searchParams.get('nombre') || '').trim(); }catch(e){ return ''; }
+  }
+  function abrir(b){
+    cual = b.getAttribute('data-vent');
+    var u = new URL(cual, location.href), n = nombreUsuario();
+    if (n) u.searchParams.set('usuario', n);          // la pantalla abierta firma con el mismo usuario
+    document.getElementById('ventTitulo').textContent = b.getAttribute('data-titulo');
+    marco.src = u.toString();
+    fondo.classList.add('visible');
+    document.body.style.overflow = 'hidden';
+  }
+  // ¿quedó una ficha abierta (agregar o editar) en el catálogo?
+  function fichaAbierta(){
+    try{
+      var d = marco.contentDocument; if (!d) return false;
+      return Array.prototype.some.call(d.querySelectorAll('.ficha'), function(f){ return f.getClientRects().length > 0; });
+    }catch(e){ return false; }
+  }
+  function cerrar(){
+    if (!fondo.classList.contains('visible')) return;
+    if (fichaAbierta() && !confirm('¿Salir sin guardar?')) return;
+    fondo.classList.remove('visible');
+    document.body.style.overflow = '';
+    marco.src = 'about:blank';
+    if (cual === 'catalogos.html') cargarChoferes();   // por si cambió la lista de choferes
+    cual = '';
+  }
+  document.getElementById('btnCatalogo').addEventListener('click', function(){ abrir(this); });
+  document.getElementById('btnDashboard').addEventListener('click', function(){ abrir(this); });
+  document.getElementById('ventCerrar').addEventListener('click', cerrar);
+  fondo.addEventListener('click', function(e){ if (e.target === fondo) cerrar(); });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape') cerrar(); });
+})();
+
 // ---------- Filtros ----------
 document.querySelectorAll('.btn-zona').forEach(function(b){
   b.addEventListener('click', function(){
@@ -1520,6 +1596,17 @@ function actualizarFlechasTabla(){
 // ---------- Init ----------
 cargarChoferes();
 cargarSolicitudes();
+// 24/11/2026: la base dice si esta persona puede programar. Si no puede, la bandeja queda solo para consultar.
+// Si la pregunta falla, la pantalla queda como siempre (la base igual rechaza guardar sin permiso).
+rpc('mov_puede_programar', {}).then(function(puede){
+  if (puede === true) document.body.classList.add('puede-prog');
+  if (puede === false){
+    seleccion = {};
+    document.body.classList.add('solo-ver');
+    actualizarBarra();
+    mostrarToast('Solo consulta: puedes ver la programación, pero no programar ni modificar.', 'exito');
+  }
+}).catch(function(){});
 </script>
 
 <!-- ===== lives-sin-barra v1 · 2026-10-05 · sin barra de título (el portal pone el encabezado).
