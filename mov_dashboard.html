@@ -678,6 +678,15 @@ html.lsPoOn body>*:not(#lsPo){visibility:hidden!important}
   .cwrap{position:relative; width:100%; height:clamp(220px,26vh,320px); cursor:pointer;}
   .cwrap.tall{height:clamp(260px,34vh,400px);}
   .cwrap canvas{position:absolute; inset:0;}
+  /* 24/11/2026: selector Día / Mes / Año del gráfico de tendencia */
+  .pcab{display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-wrap:wrap;}
+  .segtend{display:inline-flex; border:1.5px solid var(--sage); border-radius:8px; overflow:hidden; flex:none;}
+  .segtend button{background:#fff; border:none; font-family:inherit; font-size:12.5px; font-weight:700; color:var(--sage-dark); padding:6px 14px; cursor:pointer;}
+  .segtend button + button{border-left:1.5px solid var(--sage);}
+  .segtend button.on{background:var(--sage); color:#fff;}
+  html[data-tema="oscuro"] .segtend button{background:#112A25; color:#E3ECE9;}
+  html[data-tema="oscuro"] .segtend button.on{background:#0F7A5A; color:#fff;}
+  @media print{ .segtend{display:none !important;} }
 
   .tabs{display:flex; gap:4px; border-bottom:1px solid var(--warm); margin:18px 0 14px; flex-wrap:wrap;}
   .tabs button{background:none; border:none; font-family:inherit; font-size:13.5px; font-weight:700; color:var(--stone); padding:10px 16px; cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-1px;}
@@ -813,6 +822,7 @@ html.lsPoOn body>*:not(#lsPo){visibility:hidden!important}
     .tabpane{display:block!important;}
     .panel,.kpi-card,.insight{box-shadow:none; border:1px solid var(--warm); break-inside:avoid;}
     .cwrap{height:170px!important;}
+    #cwrapFueraHorario{height:430px!important;}
   }
 </style>
 <style id="lsLimp2Css">/* lives-limpieza v2 · sin notas, veredictos ni paneles de título arriba */#insightBar{display:none!important}.nota{display:none!important}
@@ -888,8 +898,17 @@ html.lsPoOn body>*:not(#lsPo){visibility:hidden!important}
     <div class="tabpane active">
       <div class="grid">
         <div class="panel col8">
-          <div class="pt">Solicitudes registradas por día</div>
-          <div class="ph">Clic en un punto de la línea para ver el detalle de ese día</div>
+          <div class="pcab">
+            <div>
+              <div class="pt" id="tendTitulo">Solicitudes registradas por mes</div>
+              <div class="ph" id="tendSub">Clic en un punto de la línea para ver el detalle de ese mes</div>
+            </div>
+            <nav class="segtend" aria-label="Ver la tendencia por">
+              <button type="button" data-tend="dia" onclick="cambiarTendencia('dia')">Día</button>
+              <button type="button" data-tend="mes" class="on" onclick="cambiarTendencia('mes')">Mes</button>
+              <button type="button" data-tend="anio" onclick="cambiarTendencia('anio')">Año</button>
+            </nav>
+          </div>
           <div class="cwrap tall"><canvas id="chartTendencia"></canvas></div>
         </div>
         <div class="panel col4">
@@ -938,8 +957,8 @@ html.lsPoOn body>*:not(#lsPo){visibility:hidden!important}
         </div>
         <div class="panel col8" id="panelFueraHorarioWrap" style="display:none">
           <div class="pt">Solicitudes fuera de horario por área</div>
-          <div class="ph">Después de las 4:00pm · clic en una barra para ver el detalle</div>
-          <div class="cwrap"><canvas id="chartFueraHorario"></canvas></div>
+          <div class="ph">Después de las 4:00pm · una barra por área, de mayor a menor · clic en una barra para ver el detalle</div>
+          <div class="cwrap" id="cwrapFueraHorario"><canvas id="chartFueraHorario"></canvas></div>
         </div>
       </div>
     </div>
@@ -1141,7 +1160,11 @@ var estadosBase = ['PENDIENTE','PROGRAMADO','EN_ESPERA','ENTREGADO','NO ENTREGAD
 var etiquetasEstadoBase = ['Pendiente','Programado','En espera','Entregado','No entregado','Cancelado'];
 var serviciosBase = ['ENVIO','RECOJO','TRASLADO'];
 var etiquetasServicioBase = ['Envío','Recojo','Traslado'];
-var diasTendencia = [];         // claves yyyy-mm-dd en el orden del gráfico de línea
+var diasTendencia = [];         // claves del gráfico de tendencia, en su orden (yyyy-mm-dd, yyyy-mm o yyyy)
+var modoTendencia = 'mes';      // 'dia' | 'mes' | 'anio' (24/11/2026: empieza por mes)
+var listaTendencia = [];        // lo filtrado, para redibujar la tendencia al cambiar Día / Mes / Año
+var MESES_CORTO = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Set','Oct','Nov','Dic'];
+var COLORES_ANIO = ['#0F7A5A','#E07B00','#2F6FB5','#8E44AD','#6B7280','#B45309'];   // estándar LIVES: el más reciente en verde
 var detalleActual = [];         // subconjunto mostrado en la ventana emergente
 var detalleTituloActual = '';
 var detalleModoEspera = false;
@@ -1174,7 +1197,8 @@ var pluginEtiquetasBarras = {
         if (cfg.pct && cfg.total > 0 && v > 0){
           txt += ' (' + Math.round(v / cfg.total * 100) + '%)';
         }
-        ctx.fillText(txt, barra.x, barra.y - 5);
+        if (chart.options.indexAxis === 'y'){ ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(txt, barra.x + 6, barra.y); }
+        else ctx.fillText(txt, barra.x, barra.y - 5);
       });
     });
     ctx.restore();
@@ -1803,40 +1827,9 @@ function aplicarFiltrosYRenderizar(){
     }
   });
 
-  // ---- Gráfico: tendencia por día ----
-  var porDia = {};
-  lista.forEach(function(o){
-    var f = soloFecha(o.fecha);
-    if (!f) return;
-    var key = f.getFullYear()+'-'+('0'+(f.getMonth()+1)).slice(-2)+'-'+('0'+f.getDate()).slice(-2);
-    porDia[key] = (porDia[key]||0)+1;
-  });
-  diasTendencia = Object.keys(porDia).sort();
-  var etiquetasDias = diasTendencia.map(function(d){ var p=d.split('-'); return p[2]+'/'+p[1]; });
-  dibujarLinea('chartTendencia', etiquetasDias, diasTendencia.map(function(d){return porDia[d];}), {
-    onClickIdx: function(i){
-      var key = diasTendencia[i];
-      if (!key) return;
-      var p = key.split('-');
-      abrirDetalle({
-        titulo:'Solicitudes registradas el ' + p[2]+'/'+p[1]+'/'+p[0],
-        lista: lista.filter(function(o){
-          var f = soloFecha(o.fecha);
-          if (!f) return false;
-          var k = f.getFullYear()+'-'+('0'+(f.getMonth()+1)).slice(-2)+'-'+('0'+f.getDate()).slice(-2);
-          return k === key;
-        }),
-        dims:[
-          {t:'Área solicitante', k:'area'},
-          {t:'Zona', k:'zona'},
-          {t:'Punto / destino', k:'destino'},
-          {t:'Estado', k:'estado'},
-          {t:'Chofer', k:'chofer'},
-          {t:'Tipo de servicio', k:'servicio'}
-        ]
-      });
-    }
-  });
+  // ---- Gráfico: tendencia por día, mes o año (24/11/2026; empieza por mes) ----
+  listaTendencia = lista;
+  dibujarTendencia();
 
   // ---- Gráfico condicional: solicitudes fuera de horario por área ----
   // Solo se muestra el panel si hay al menos una solicitud fuera de horario en lo filtrado,
@@ -1846,20 +1839,25 @@ function aplicarFiltrosYRenderizar(){
   if (fueraHorarioLista.length){
     panelFH.style.display = '';
     var conteoAreaFH = {};
+    // 24/11/2026: la misma área escrita en mayúsculas o minúsculas, con o sin tilde, cuenta como una sola
+    var areaFH = function(o){ return String(o.area||'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim().toUpperCase() || '(SIN AREA)'; };
     fueraHorarioLista.forEach(function(o){
-      var a = o.area || '(sin área)';
+      var a = areaFH(o);
       conteoAreaFH[a] = (conteoAreaFH[a]||0) + 1;
     });
     var areasFH = Object.keys(conteoAreaFH).sort(function(a,b){ return conteoAreaFH[b]-conteoAreaFH[a]; });
     var datosFH = areasFH.map(function(a){ return conteoAreaFH[a]; });
-    dibujarBarras('chartFueraHorario', areasFH, [{label:'Fuera de horario', data:datosFH, backgroundColor:'#7C3AED'}], {
+    // barras horizontales: una fila por área, con el alto según cuántas áreas hay (antes salían angostas y pegadas)
+    document.getElementById('cwrapFueraHorario').style.height = Math.max(220, areasFH.length * 30 + 40) + 'px';
+    dibujarBarras('chartFueraHorario', areasFH, [{label:'Fuera de horario', data:datosFH, backgroundColor:'#7C3AED', maxBarThickness:20}], {
+      horizontal:true,
       etiquetas:{pct:true, total: fueraHorarioLista.length},
       onClickIdx: function(i){
         var a = areasFH[i];
         abrirDetalle({
           titulo:'Fuera de horario — Área: ' + a,
           subtituloExtra:'Solicitudes registradas después de las 4:00pm (se atienden el siguiente día hábil).',
-          lista: fueraHorarioLista.filter(function(o){ return (o.area||'(sin área)') === a; }),
+          lista: fueraHorarioLista.filter(function(o){ return areaFH(o) === a; }),
           dims:[
             {t:'Punto / destino', k:'destino'},
             {t:'Zona', k:'zona'},
@@ -1911,6 +1909,74 @@ function aplicarFiltrosYRenderizar(){
   renderTablaSinGps();
 }
 
+// ---------- Tendencia por día, mes o año ----------
+function claveTendencia(o, modo){
+  var f = soloFecha(o.fecha);
+  if (!f) return '';
+  var a = f.getFullYear(), m = ('0'+(f.getMonth()+1)).slice(-2), d = ('0'+f.getDate()).slice(-2);
+  return modo === 'anio' ? String(a) : modo === 'mes' ? a+'-'+m : a+'-'+m+'-'+d;
+}
+function nombreClaveTendencia(key, modo){
+  var p = key.split('-');
+  if (modo === 'anio') return p[0];
+  if (modo === 'mes') return MESES_CORTO[Number(p[1])-1] + ' ' + p[0];
+  return p[2]+'/'+p[1]+'/'+p[0];
+}
+function detalleTendencia(key, modo){
+  if (!key) return;
+  var lista = listaTendencia;
+  abrirDetalle({
+    titulo:'Solicitudes registradas ' + (modo === 'dia' ? 'el ' : 'en ') + nombreClaveTendencia(key, modo),
+    lista: lista.filter(function(o){ return claveTendencia(o, modo) === key; }),
+    dims:[
+      {t:'Área solicitante', k:'area'},
+      {t:'Zona', k:'zona'},
+      {t:'Punto / destino', k:'destino'},
+      {t:'Estado', k:'estado'},
+      {t:'Chofer', k:'chofer'},
+      {t:'Tipo de servicio', k:'servicio'}
+    ]
+  });
+}
+function cambiarTendencia(modo){
+  modoTendencia = modo;
+  dibujarTendencia();
+}
+function dibujarTendencia(){
+  var modo = modoTendencia, lista = listaTendencia, conteo = {};
+  lista.forEach(function(o){ var k = claveTendencia(o, modo); if (k) conteo[k] = (conteo[k]||0)+1; });
+  var claves = Object.keys(conteo).sort();
+  var palabra = modo === 'anio' ? 'año' : modo === 'mes' ? 'mes' : 'día';
+  document.querySelectorAll('.segtend button').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-tend') === modo); });
+  document.getElementById('tendTitulo').textContent = 'Solicitudes registradas por ' + palabra;
+  document.getElementById('tendSub').textContent = 'Clic en un punto de la línea para ver el detalle de ese ' + palabra;
+  var anios = {}; claves.forEach(function(k){ anios[k.slice(0,4)] = 1; });
+  var listaAnios = Object.keys(anios).sort();
+  // Por mes y con más de un año: una línea por año, de enero a diciembre (comparativo anual LIVES)
+  if (modo === 'mes' && listaAnios.length > 1){
+    diasTendencia = [];
+    var orden = listaAnios.slice().reverse();     // el más reciente primero (verde)
+    var series = orden.map(function(a, i){
+      return { label:a, color:COLORES_ANIO[i % COLORES_ANIO.length],
+        data: MESES_CORTO.map(function(_, m){ var k = a+'-'+('0'+(m+1)).slice(-2); return conteo[k] === undefined ? null : conteo[k]; }) };
+    });
+    dibujarLinea('chartTendencia', MESES_CORTO, null, {
+      series: series, palabra: palabra, etiquetas: true,
+      onClickPunto: function(di, i){ var k = orden[di]+'-'+('0'+(i+1)).slice(-2); if (conteo[k] !== undefined) detalleTendencia(k, modo); }
+    });
+    return;
+  }
+  diasTendencia = claves;
+  var etiquetas = claves.map(function(k){
+    var p = k.split('-');
+    return modo === 'anio' ? p[0] : modo === 'mes' ? MESES_CORTO[Number(p[1])-1]+' '+p[0] : p[2]+'/'+p[1];
+  });
+  dibujarLinea('chartTendencia', etiquetas, claves.map(function(k){ return conteo[k]; }), {
+    palabra: palabra, etiquetas: modo !== 'dia' || claves.length <= 31,
+    onClickIdx: function(i){ detalleTendencia(diasTendencia[i], modo); }
+  });
+}
+
 // ---------- Helpers Chart.js ----------
 function destruirSiExiste(id){ if (graficos[id]){ graficos[id].destroy(); delete graficos[id]; } }
 
@@ -1938,6 +2004,15 @@ function dibujarBarras(id, labels, datasets, cfg){
     plugins:{legend:{display:datasets.length>1, position:'bottom', labels:{boxWidth:12, usePointStyle:true}}},
     scales:{ x:{grid:{display:false}}, y:{beginAtZero:true, grid:{color:'#F1F6F4'}} }
   };
+  if (cfg.horizontal){
+    opciones.indexAxis = 'y';
+    opciones.layout = {padding:{right:78}};
+    // en pantallas angostas el nombre largo se recorta con «…» para que no se corte por la izquierda (el nombre completo sale al tocar la barra)
+    opciones.scales = { x:{beginAtZero:true, grid:{color:'#F1F6F4'}, ticks:{maxTicksLimit:6}},
+      y:{grid:{display:false}, ticks:{autoSkip:false, font:{size:11.5}, callback:function(v){
+        var t = String(this.getLabelForValue(v)), max = this.chart.width < 520 ? 15 : 34;
+        return t.length > max ? t.slice(0, max-1) + '…' : t; }}} };
+  }
   if (cfg.etiquetas){
     opciones.etiquetasLIVES = {
       pct: !!cfg.etiquetas.pct,
@@ -1982,31 +2057,45 @@ function dibujarLinea(id, labels, data, cfg){
   cfg = cfg || {};
   destruirSiExiste(id);
   var ctx = document.getElementById(id).getContext('2d');
-  graficos[id] = new Chart(ctx, {
-    type:'line',
-    data:{labels:labels, datasets:[{
+  var muchos = labels.length > 45;                 // muchos puntos (vista por día): puntos chicos, sin amontonar
+  var palabra = cfg.palabra || 'día';
+  var datasets;
+  if (cfg.series){
+    datasets = cfg.series.map(function(sr){
+      return { label:sr.label, data:sr.data, borderColor:sr.color, backgroundColor:sr.color, fill:false, tension:0.3,
+        borderWidth:2.5, pointRadius:4, pointBackgroundColor:sr.color, pointBorderColor:'#fff', pointBorderWidth:2,
+        pointHoverRadius:7, spanGaps:true };
+    });
+  } else {
+    datasets = [{
       label:'Solicitudes', data:data, borderColor:SAGE,
       backgroundColor:function(x){
         var g = x.chart.ctx.createLinearGradient(0,0,0,320);
         g.addColorStop(0,'rgba(15,122,90,.18)'); g.addColorStop(1,'rgba(15,122,90,0)'); return g;
       },
-      fill:true, tension:0.3, borderWidth:2.5,
-      pointRadius:function(c){ return c.dataIndex === data.length-1 ? 6 : 4; },
+      fill:true, tension:0.3, borderWidth:muchos ? 2 : 2.5,
+      pointRadius:function(c){ return c.dataIndex === data.length-1 ? (muchos ? 4 : 6) : (muchos ? 1.5 : 4); },
       pointBackgroundColor:function(c){ return c.dataIndex === data.length-1 ? '#DC2626' : SAGE; },
-      pointBorderColor:'#fff', pointBorderWidth:2, pointHoverRadius:7
-    }]},
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      onClick: manejarClic(cfg),
-      onHover: manejarHover,
-      interaction:{mode:'index', intersect:false},
-      plugins:{
-        legend:{display:false},
-        tooltip:{callbacks:{afterLabel:function(){ return 'Clic para ver el detalle de ese día'; }}}
-      },
-      scales:{ x:{grid:{display:false}}, y:{beginAtZero:true, grid:{color:'#F1F6F4'}} }
-    }
-  });
+      pointBorderColor:'#fff', pointBorderWidth:muchos ? 0 : 2, pointHoverRadius:7
+    }];
+  }
+  var opciones = {
+    responsive:true, maintainAspectRatio:false,
+    onClick: cfg.onClickPunto ? function(evt, el, chart){
+      var c = chart.getElementsAtEventForMode(evt, 'nearest', {intersect:false}, false);
+      if (c && c.length) cfg.onClickPunto(c[0].datasetIndex, c[0].index);
+    } : manejarClic(cfg),
+    onHover: manejarHover,
+    interaction:{mode:'index', intersect:false},
+    layout:{padding:{top:22, right:14}},
+    plugins:{
+      legend:{display:!!cfg.series, position:'bottom', labels:{boxWidth:12, usePointStyle:true}},
+      tooltip:{callbacks:{afterLabel:function(){ return 'Clic para ver el detalle de ese ' + palabra; }}}
+    },
+    scales:{ x:{grid:{display:false}, ticks:{autoSkip:true, maxRotation:0, maxTicksLimit:muchos ? 16 : 31}}, y:{beginAtZero:true, grid:{color:'#F1F6F4'}} }
+  };
+  if (cfg.etiquetas) opciones.etiquetasLIVES = {pct:false, total:0, sufijo:''};
+  graficos[id] = new Chart(ctx, { type:'line', data:{labels:labels, datasets:datasets}, options:opciones });
 }
 
 // ================= VENTANA EMERGENTE DE DETALLE =================
